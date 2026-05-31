@@ -6,6 +6,7 @@ import db from './db.js';
 // Centralized Middlewares
 import { loggingMiddleware } from './middleware/loggingMiddleware.js';
 import { errorMiddleware } from './middleware/errorMiddleware.js';
+import { requestTracingMiddleware } from './middleware/requestContext.js';
 
 // Environment variable validator
 import { envValidator } from './utils/envValidator.js';
@@ -33,6 +34,7 @@ dotenv.config();
 const app = express();
 
 // 1. Global Middlewares
+app.use(requestTracingMiddleware);
 app.use(cors());
 app.use(express.json());
 app.use(loggingMiddleware);
