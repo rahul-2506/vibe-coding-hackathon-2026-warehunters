@@ -1,0 +1,92 @@
+.safe-image-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+.safe-image-skeleton {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    border-radius: inherit;
+}
+
+.safe-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: inherit;
+    z-index: 1;
+}
+
+.safe-image-fallback {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    z-index: 1;
+}
+
+.fallback-gradient-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.05) 0%,
+        rgba(16, 185, 129, 0.05) 100%
+    );
+    border-radius: inherit;
+    z-index: 1;
+}
+
+.fallback-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-weight: 600;
+    z-index: 2;
+}
+
+.fallback-icon {
+    stroke-width: 1.5;
+    opacity: 0.5;
+}
+
+.fallback-text {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.fade-in {
+    animation: imageFadeIn 0.3s ease-in-out forwards;
+}
+
+@keyframes imageFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

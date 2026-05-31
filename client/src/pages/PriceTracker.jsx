@@ -1,0 +1,282 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Bell, TrendingDown, Play, CheckCircle, Wifi, ShieldAlert, Sparkles, RefreshCw, Square } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
+import SafeImage from '../components/SafeImage';
+import './PriceTracker.css';
+
+const PriceTracker = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const product = location.state?.product;
+
+    const [targetPrice, setTargetPrice] = useState('');
+    const [isChecking, setIsChecking] = useState(false);
+    const [currentPlatformPrices, setCurrentPlatformPrices] = useState([]);
+    const [checkLogs, setCheckLogs] = useState([]);
+    const [notification, setNotification] = useState(null);
+    const logsEndRef = useRef(null);
+    const intervalRef = useRef(null);
+
+    // Cleanup active intervals on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+        };
+    }, []);
+
+    // If no product is passed, fallback or redirect
+    useEffect(() => {
+        if (!product) {
+            navigate('/products');
+        }
+    }, [product, navigate]);
+
+    useEffect(() => {
+        if (logsEndRef.current) {
+            logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [checkLogs]);
+
+    if (!product) return null;
+
+    const basePrice = Number(product.price || 0);
+
+    const startChecking = () => {
+        if (!targetPrice || Number(targetPrice) <= 0) {
+            alert("Please enter a valid target alert price!");
+            return;
+        }
+
+        setIsChecking(true);
+        setNotification(null);
+        setCheckLogs([
+            { time: new Date().toLocaleTimeString(), message: "Initializing real-time web scraper...", type: "system" }
+        ]);
+
+        let tick = 0;
+        
+        const checkPrice = async () => {
+            tick++;
+            
+            setCheckLogs(prev => [...prev, {
+                time: new Date().toLocaleTimeString(),
+                message: `Scraping external platforms for: ${product.name}...`,
+                type: "scan"
+            }]);
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/ai/scrape-price`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_name: product.name })
+                });
+
+                if (!res.ok) {
+                    throw new Error("Scraper blocked or failed");
+                }
+                
+                const data = await res.json();
+                const scannedPrice = data.price;
+                const targetPlatform = data.platform || 'Flipkart';
+
+                setCheckLogs(prev => [...prev, {
+                    time: new Date().toLocaleTimeString(),
+                    message: `✅ Scraped ${targetPlatform}: Live Price = ₹${scannedPrice}/-`,
+                    type: "scan"
+                }]);
+
+                setCurrentPlatformPrices(prev => {
+                    const existing = prev.filter(p => p.platform !== targetPlatform);
+                    return [...existing, { platform: targetPlatform, price: scannedPrice }];
+                });
+
+                // Check if price matches or is lower than target price
+                if (scannedPrice <= Number(targetPrice)) {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                    setIsChecking(false);
+                    
+                    // Trigger notification alert
+                    setNotification({
+                        platform: targetPlatform,
+                        price: scannedPrice,
+                        title: "🔥 Target Match Notification!",
+                        message: `Congratulations! ${targetPlatform} matched your target price of ₹${targetPrice}/- with a live rate of ₹${scannedPrice}/-!`
+                    });
+
+                    // Play notification alert sound
+                    try {
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        const oscillator = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        oscillator.type = 'sine';
+                        oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+                        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+                        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+                        oscillator.start();
+                        oscillator.stop(audioCtx.currentTime + 0.4);
+                    } catch (e) {
+                        console.log("Audio play blocked by browser autoplay rules");
+                    }
+                }
+            } catch (err) {
+                setCheckLogs(prev => [...prev, {
+                    time: new Date().toLocaleTimeString(),
+                    message: `⚠️ Scraper issue: ${err.message}. Retrying...`,
+                    type: "error"
+                }]);
+            }
+
+            // Stop after 15 ticks to avoid infinite loops if target is too low
+            if (tick >= 15) {
+                if (intervalRef.current) clearInterval(intervalRef.current);
+                intervalRef.current = null;
+                setIsChecking(false);
+                setCheckLogs(prev => [...prev, {
+                    time: new Date().toLocaleTimeString(),
+                    message: "Monitoring session timed out. Target price not reached. Adjust threshold or restart.",
+                    type: "error"
+                }]);
+            }
+        };
+
+        checkPrice();
+        const interval = setInterval(checkPrice, 10000);
+        intervalRef.current = interval;
+    };
+
+    return (
+        <div className="price-tracker-container">
+            <header className="tracker-header">
+                <button className="back-btn" onClick={() => navigate(-1)}>
+                    <ArrowLeft size={18} /> Back
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <TrendingDown className="text-accent" size={24} />
+                    <h1>Cheap Buy Live Price Tracker</h1>
+                </div>
+            </header>
+
+            <div className="tracker-grid">
+                {/* Product Detail Card */}
+                <div className="tracker-product-card glass-panel">
+                    <span className="p-category text-accent">{product.category}</span>
+                    <h2>{product.name}</h2>
+                    <div className="p-image-container">
+                        <SafeImage src={product.image_url} alt={product.name} />
+                    </div>
+                    <div className="p-price-row">
+                        <span>Current System Price</span>
+                        <strong>₹{Number(product.price).toFixed(2)}/-</strong>
+                    </div>
+                </div>
+
+                {/* Setup Controls & Live Feed */}
+                <div className="tracker-controls-panel glass-panel">
+                    {notification && (
+                        <div className="tracker-notification-alert animate-bounce">
+                            <Bell className="bell-icon" size={28} />
+                            <div className="alert-content">
+                                <h3>{notification.title}</h3>
+                                <p>{notification.message}</p>
+                                <button className="claim-deal-btn" onClick={() => window.open('https://amazon.in', '_blank')}>
+                                    Claim Deal on {notification.platform} Now
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <h3>Configure Real-Time Alerts</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                        Set your target price and our active e-commerce crawler will scan platforms in real-time until a match is found.
+                    </p>
+
+                    <div className="target-input-row">
+                        <label htmlFor="targetPriceInput">Set Target Alert Price (₹)</label>
+                        <div className="input-wrapper">
+                            <span>₹</span>
+                            <input 
+                                id="targetPriceInput"
+                                type="number" 
+                                placeholder={`Enter target below ${Math.round(basePrice - 10)}`}
+                                value={targetPrice}
+                                onChange={(e) => setTargetPrice(e.target.value)}
+                                disabled={isChecking}
+                            />
+                        </div>
+                    </div>
+
+                    <button 
+                        className={`live-check-btn ${isChecking ? 'checking' : ''}`}
+                        onClick={() => {
+                            if (isChecking) {
+                                if (intervalRef.current) {
+                                    clearInterval(intervalRef.current);
+                                    intervalRef.current = null;
+                                }
+                                setIsChecking(false);
+                                setCheckLogs(prev => [...prev, {
+                                    time: new Date().toLocaleTimeString(),
+                                    message: "Scanning daemon manually suspended.",
+                                    type: "system"
+                                }]);
+                            } else {
+                                startChecking();
+                            }
+                        }}
+                        style={{
+                            background: isChecking ? '#ef4444' : 'var(--accent-color)',
+                            boxShadow: isChecking ? '0 4px 10px rgba(239, 68, 68, 0.25)' : '0 4px 10px rgba(99, 102, 241, 0.25)'
+                        }}
+                    >
+                        {isChecking ? (
+                            <>
+                                <Square size={18} fill="white" />
+                                Stop Scanner
+                            </>
+                        ) : (
+                            <>
+                                <Play size={18} />
+                                Start Live Checking
+                            </>
+                        )}
+                    </button>
+
+                    {/* Live Logging Ticker */}
+                    <div className="live-logs-container glass-panel">
+                        <div className="logs-header">
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Wifi size={14} className={isChecking ? "text-accent animate-pulse" : "text-muted"} />
+                                Live Scanner Feeds
+                            </span>
+                            {isChecking && <span className="scanning-tag">ACTIVE MONITORING</span>}
+                        </div>
+                        <div className="logs-body">
+                            {checkLogs.length === 0 ? (
+                                <div className="no-logs">
+                                    <ShieldAlert size={28} opacity={0.3} />
+                                    <span>No active monitoring sessions. Enter a target price to start live scanning.</span>
+                                </div>
+                            ) : (
+                                checkLogs.map((log, idx) => (
+                                    <div key={idx} className={`log-line ${log.type}`}>
+                                        <span className="log-time">[{log.time}]</span>
+                                        <span className="log-message">{log.message}</span>
+                                    </div>
+                                ))
+                            )}
+                            <div ref={logsEndRef} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default PriceTracker;
