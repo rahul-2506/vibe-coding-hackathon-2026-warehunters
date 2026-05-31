@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.post('/analyze', authMiddleware, compareController.analyze);
 router.post('/save', authMiddleware, compareController.save);
-router.get('/history/:userId', compareController.getHistory);
-router.get('/saved/:userId', compareController.getSaved);
+router.get('/history/:userId', authMiddleware, compareController.getHistory);
+router.get('/saved/:userId', authMiddleware, compareController.getSaved);
 
 export default router;

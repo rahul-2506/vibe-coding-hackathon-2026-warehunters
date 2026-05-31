@@ -121,6 +121,11 @@ export const compareController = {
                 return response.error(res, 'User ID parameter is required.', null, 400);
             }
 
+            if (req.user.id !== userId) {
+                logger.warn(`[COMPARISON CONTROLLER] Access Denied: User ${req.user.id} tried to view history of user ${userId}`, 'COMPARE');
+                return response.error(res, 'Access Denied: You cannot view another user\'s history.', null, 403);
+            }
+
             const { data, error } = await supabase
                 .from('comparison_history')
                 .select('*, product_1:products!product_1_id(*), product_2:products!product_2_id(*)')
@@ -145,6 +150,11 @@ export const compareController = {
 
             if (!userId) {
                 return response.error(res, 'User ID parameter is required.', null, 400);
+            }
+
+            if (req.user.id !== userId) {
+                logger.warn(`[COMPARISON CONTROLLER] Access Denied: User ${req.user.id} tried to view saved comparisons of user ${userId}`, 'COMPARE');
+                return response.error(res, 'Access Denied: You cannot view another user\'s saved comparisons.', null, 403);
             }
 
             const { data, error } = await supabase

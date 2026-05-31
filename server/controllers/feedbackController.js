@@ -37,6 +37,10 @@ export const feedbackController = {
                 return response.error(res, 'User ID parameter is required', null, 400);
             }
 
+            if (req.user.id !== userId) {
+                return response.error(res, 'Access Denied: You cannot view another user\'s feedback history.', null, 403);
+            }
+
             const data = await feedbackService.getUserFeedbacks(userId);
             return response.success(res, data);
         } catch (err) {

@@ -7,6 +7,6 @@ const router = express.Router();
 
 router.post('/submit', authMiddleware, reviewLimiter, feedbackController.submit);
 router.get('/', feedbackController.getAll);
-router.get('/user/:userId', feedbackController.getByUser);
+router.get('/user/:userId', authMiddleware, feedbackController.getByUser);
 
 export default router;
