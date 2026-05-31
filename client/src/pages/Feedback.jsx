@@ -2,19 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Search, Star, MessageSquare, ShieldCheck, CheckCircle2, User, Send } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import './Feedback.css';
 
 // Helper: get the localStorage key scoped to the current user
-const getFeedbackKey = () => {
-    try {
-        const u = JSON.parse(localStorage.getItem('currentUser') || 'null');
-        return `mySubmittedFeedbacks_${u?.id || u?.username || 'guest'}`;
-    } catch {
-        return 'mySubmittedFeedbacks_guest';
-    }
+const getFeedbackKey = (user) => {
+    const userKey = user?.id || user?.user_metadata?.username || 'guest';
+    return `mySubmittedFeedbacks_${userKey}`;
 };
 
 const Feedback = () => {
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [publicFeedbacks, setPublicFeedbacks] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,8 +20,8 @@ const Feedback = () => {
     const [products, setProducts] = useState([]);
     const [selectedFeedbackId, setSelectedFeedbackId] = useState(null);
 
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-    const currentUserId = currentUser?.id || currentUser?.username || 'guest';
+    const currentUser = user;
+    const currentUserId = user?.id || user?.user_metadata?.username || 'guest';
 
     const [formData, setFormData] = useState({
         product_name: '',

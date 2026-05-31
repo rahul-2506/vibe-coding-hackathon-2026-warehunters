@@ -13,37 +13,15 @@ export const AuthProvider = ({ children }) => {
 
   /* ── Listen to Supabase auth state ── */
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session: sess } }) => {
       setSession(sess);
       setUser(sess?.user ?? null);
-      if (sess?.user) {
-        const u = {
-          id: sess.user.id,
-          email: sess.user.email,
-          username: sess.user.user_metadata?.username || sess.user.email?.split('@')[0] || 'user'
-        };
-        localStorage.setItem('currentUser', JSON.stringify(u));
-      } else {
-        localStorage.removeItem('currentUser');
-      }
       setLoading(false);
     });
 
-    // Subscribe to future changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess);
       setUser(sess?.user ?? null);
-      if (sess?.user) {
-        const u = {
-          id: sess.user.id,
-          email: sess.user.email,
-          username: sess.user.user_metadata?.username || sess.user.email?.split('@')[0] || 'user'
-        };
-        localStorage.setItem('currentUser', JSON.stringify(u));
-      } else {
-        localStorage.removeItem('currentUser');
-      }
       setLoading(false);
     });
 
@@ -103,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setProfile(null);
     setSession(null);
-    localStorage.removeItem('currentUser');
     window.location.assign('/auth');
   };
 

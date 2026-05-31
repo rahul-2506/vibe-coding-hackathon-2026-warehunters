@@ -1,27 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { X, Star, MessageSquare, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-const getFeedbackKey = () => {
-    try {
-        const u = JSON.parse(localStorage.getItem('currentUser') || 'null');
-        return `mySubmittedFeedbacks_${u?.id || u?.username || 'guest'}`;
-    } catch {
-        return 'mySubmittedFeedbacks_guest';
-    }
+const getFeedbackKey = (user) => {
+    const userKey = user?.id || user?.user_metadata?.username || 'guest';
+    return `mySubmittedFeedbacks_${userKey}`;
 };
 
 const ProductFeedbackPanel = ({ product, feedbacks, onClose }) => {
+    const { user } = useAuth();
     const [mySubmittedFeedbacks, setMySubmittedFeedbacks] = useState([]);
 
     useEffect(() => {
-        const key = getFeedbackKey();
+        const key = getFeedbackKey(user);
         try {
             const saved = JSON.parse(localStorage.getItem(key) || '[]');
             setMySubmittedFeedbacks(saved);
         } catch {
             setMySubmittedFeedbacks([]);
         }
-    }, []);
+    }, [user]);
 
     const isMyFeedback = (f) => {
         return mySubmittedFeedbacks.some(myF => 

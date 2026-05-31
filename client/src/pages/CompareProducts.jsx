@@ -10,6 +10,7 @@ import {
 import SafeImage from '../components/SafeImage';
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 
 // Custom Glowing Radar Chart Component (React-19 compliant custom SVG)
 const GlowingRadarChart = ({ name1, name2, scorecard1, scorecard2 }) => {
@@ -203,7 +204,8 @@ const CompareProducts = () => {
     const [savedComparisons, setSavedComparisons] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
     
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    const { user } = useAuth();
+    const currentUser = user;
 
     const fetchSavedComparisons = async () => {
         if (!currentUser || currentUser === 'guest' || !currentUser.id) return;
@@ -226,7 +228,7 @@ const CompareProducts = () => {
 
     useEffect(() => {
         fetchSavedComparisons();
-    }, []);
+    }, [user]);
 
     const handleSaveComparison = async () => {
         if (!comparisonData || !p1 || !p2) return;

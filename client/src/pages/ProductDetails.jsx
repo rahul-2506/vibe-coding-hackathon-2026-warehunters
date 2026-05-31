@@ -8,6 +8,7 @@ import { useCart } from '../context/CartContext';
 import { API_BASE_URL } from '../config/api';
 import SafeImage from '../components/SafeImage';
 import { supabase } from '../config/supabaseClient';
+import { useAuth } from '../context/AuthContext';
 import './ProductDetails.css';
 
 const getPlatformRates = (product) => {
@@ -89,13 +90,9 @@ const getPlatformRates = (product) => {
     }
 };
 
-const getFeedbackKey = () => {
-    try {
-        const u = JSON.parse(localStorage.getItem('currentUser') || 'null');
-        return `mySubmittedFeedbacks_${u?.id || u?.username || 'guest'}`;
-    } catch {
-        return 'mySubmittedFeedbacks_guest';
-    }
+const getFeedbackKey = (user) => {
+    const userKey = user?.id || user?.user_metadata?.username || 'guest';
+    return `mySubmittedFeedbacks_${userKey}`;
 };
 
 const ProductDetails = () => {
@@ -131,8 +128,9 @@ const ProductDetails = () => {
     const [imageUrl, setImageUrl] = useState('');
     const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
 
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-    const currentUserId = currentUser?.id || currentUser?.username || 'guest';
+    const { user } = useAuth();
+    const currentUser = user;
+    const currentUserId = user?.id || user?.user_metadata?.username || 'guest';
 
     const handleReviewSubmit = async (e) => {
         e.preventDefault();
@@ -237,14 +235,14 @@ const ProductDetails = () => {
 
     // Local submissions retrieval
     useEffect(() => {
-        const key = getFeedbackKey();
+        const key = getFeedbackKey(user);
         try {
             const saved = JSON.parse(localStorage.getItem(key) || '[]');
             setMySubmittedFeedbacks(saved);
         } catch {
             setMySubmittedFeedbacks([]);
         }
-    }, []);
+    }, [user]);
 
     const isMyFeedback = (f) => {
         return mySubmittedFeedbacks.some(myF => 
