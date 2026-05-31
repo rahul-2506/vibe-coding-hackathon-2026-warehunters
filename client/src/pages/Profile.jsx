@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Settings, Save, AlertCircle, Star, MessageSquare, Package, ChevronRight } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../config/supabaseClient';
 import './Profile.css';
 
 const DEFAULT_PREFS = {
@@ -49,7 +50,12 @@ const Profile = ({ user }) => {
         // Load user-specific feedbacks from server
         const fetchMyFeedbacks = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/feedbacks/user/${userKey}`);
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const headers = {};
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const res = await fetch(`${API_BASE_URL}/api/feedback/user/${userKey}`, { headers });
                 if (res.ok) {
                     const data = await res.json();
                     setMyFeedbacks(Array.isArray(data) ? data : (data.data || []));

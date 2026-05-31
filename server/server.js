@@ -66,11 +66,23 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/auth', authLimiter);
 app.use('/api/products', productRoutes);
 app.use('/api/recommend', recommendRoutes);
-app.use('/api/ai/recommend', recommendRoutes); // Client-side fallback route
+
+// Redirect duplicate `/api/ai/recommend` -> `/api/recommend` to choose one canonical version
+app.all('/api/ai/recommend*', (req, res) => {
+    const newPath = req.originalUrl.replace('/api/ai/recommend', '/api/recommend');
+    res.redirect(307, newPath);
+});
+
 app.use('/api/search', searchRoutes);
 app.use('/api/ai/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
-app.use('/api/feedbacks', feedbackRoutes); // Support plural endpoints for client compatibility
+
+// Redirect duplicate `/api/feedbacks` -> `/api/feedback` to choose one canonical version
+app.all('/api/feedbacks*', (req, res) => {
+    const newPath = req.originalUrl.replace('/api/feedbacks', '/api/feedback');
+    res.redirect(307, newPath);
+});
+
 app.use('/api/ai', aiRoutes);
 app.use('/api/compare', compareRoutes);
 

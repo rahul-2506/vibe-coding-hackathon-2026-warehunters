@@ -156,7 +156,7 @@ const Home = () => {
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            return fetch(`${API_BASE_URL}/api/ai/recommend`, {
+            return fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ prompt: ing.query })
@@ -210,7 +210,7 @@ const Home = () => {
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            const res = await fetch(`${API_BASE_URL}/api/ai/recommend`, {
+            const res = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ prompt })

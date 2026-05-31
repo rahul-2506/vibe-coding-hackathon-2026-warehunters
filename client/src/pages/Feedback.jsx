@@ -38,7 +38,7 @@ const Feedback = () => {
 
     const fetchPublicFeedbacks = async () => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/feedbacks`);
+            const res = await fetch(`${API_BASE_URL}/api/feedback`);
             const resJson = await res.json();
             const data = Array.isArray(resJson) ? resJson : (resJson.data || []);
             setPublicFeedbacks(data);
