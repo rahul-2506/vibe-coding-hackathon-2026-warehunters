@@ -1,40 +1,46 @@
 export const response = {
+    /**
+     * Standardized Success Response shape
+     * Returns: { success: true, data: {} }
+     */
     success(res, data = {}, message = 'Operation successful', status = 200) {
         let finalData = data;
-        let finalMessage = message;
-        let extraKeys = {};
 
         // Avoid double enveloping if data is already in { success, data, ... } format
         if (data && typeof data === 'object') {
             if ('success' in data && 'data' in data) {
                 finalData = data.data;
-                if (data.message) {
-                    finalMessage = data.message;
-                }
-                // Unpack any extra keys (like recommendations)
-                for (const key of Object.keys(data)) {
-                    if (key !== 'success' && key !== 'data' && key !== 'message' && key !== 'error') {
-                        extraKeys[key] = data[key];
-                    }
-                }
             }
         }
 
         return res.status(status).json({
             success: true,
-            data: finalData,
-            message: finalMessage,
-            error: null,
-            ...extraKeys
+            data: finalData
         });
     },
 
-    error(res, message, details = null, status = 500) {
+    /**
+     * Standardized Error Response shape
+     * Returns: { success: false, message: "", errorCode: "" }
+     */
+    error(res, message, errorCode = null, status = 500) {
+        const getErrorCode = (statusCode, customCode) => {
+            if (customCode) return String(customCode);
+            switch (statusCode) {
+                case 400: return 'ERR_BAD_REQUEST';
+                case 401: return 'ERR_UNAUTHORIZED';
+                case 403: return 'ERR_FORBIDDEN';
+                case 404: return 'ERR_NOT_FOUND';
+                case 409: return 'ERR_CONFLICT';
+                case 429: return 'ERR_LIMIT_EXCEEDED';
+                default: return 'ERR_INTERNAL_SERVER';
+            }
+        };
+
         return res.status(status).json({
             success: false,
-            data: null,
-            message: message,
-            error: details || message
+            message: message || 'An unexpected error occurred',
+            errorCode: getErrorCode(status, errorCode)
         });
     }
 };
