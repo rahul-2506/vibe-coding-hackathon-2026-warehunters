@@ -3,6 +3,7 @@ node_modules/
 client/node_modules/
 server/node_modules/
 ml_service/venv/
+venv/
 mooku/
 
 # Environment files
@@ -11,9 +12,12 @@ client/.env
 server/.env
 ml_service/.env
 
-# Build outputs
+# Build and Cache outputs
 dist/
 client/dist/
+build/
+.cache/
+coverage/
 __pycache__/
 ml_service/__pycache__/
 ml_service/services/__pycache__/
