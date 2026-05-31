@@ -35,22 +35,15 @@ export const aiService = {
         
         logger.info(`[CHAT REQUEST] Frontend initiated chatbot query: "${message}"`, 'AI_BRIDGE');
         
-        // 1. Pre-request Health Check
-        const isHealthy = await this.verifyAIHealth();
-        if (!isHealthy) {
-            logger.warn(`[CHAT FALLBACK] ML service health check failed. Redirecting query to local Node.js RAG Engine.`, 'AI_BRIDGE');
-            return await this.localFallback(message, 'ML Service Offline');
-        }
-
-        // 2. Timeout and Retry execution
         let attempt = 0;
-        const maxRetries = 2;
+        const maxAttempts = 3;
+        const backoffTimes = [500, 1000, 2000];
         const timeoutMs = 8000;
         
-        while (attempt <= maxRetries) {
+        while (attempt < maxAttempts) {
             attempt++;
             try {
-                logger.info(`[CHAT REQUEST] Sending request to Python AI Server (Attempt ${attempt}/${maxRetries + 1})...`, 'AI_BRIDGE');
+                logger.info(`[CHAT REQUEST] Sending request to Python AI Server (Attempt ${attempt}/${maxAttempts})...`, 'AI_BRIDGE');
                 
                 const responsePromise = fetch(url, {
                     method: 'POST',
@@ -71,7 +64,6 @@ export const aiService = {
                 const data = await pythonRes.json();
                 logger.info(`[CHAT RESPONSE] Successfully received response from Python AI Server: "${data.response ? data.response.substring(0, 80) : ''}..."`, 'AI_BRIDGE');
                 
-                // Return in format expected by backend (with response and reply keys)
                 return {
                     response: data.response || data.reply,
                     reply: data.reply || data.response
@@ -80,12 +72,14 @@ export const aiService = {
             } catch (err) {
                 logger.error(`[CHAT REQUEST ERROR] Attempt ${attempt} failed: ${err.message}`, err, 'AI_BRIDGE');
                 
-                if (attempt > maxRetries) {
-                    logger.warn(`[CHAT FALLBACK] All connection attempts to Python AI server failed. Redirecting query to local Node.js RAG Engine.`, 'AI_BRIDGE');
+                if (attempt >= maxAttempts) {
+                    logger.warn(`[CHAT FALLBACK] All ${maxAttempts} attempts to Python AI server failed. Redirecting query to local Node.js RAG Engine.`, 'AI_BRIDGE');
                     return await this.localFallback(message, err.message);
                 }
-                // Small delay before retrying
-                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const delay = backoffTimes[attempt - 1];
+                logger.warn(`[RETRY] Attempt ${attempt} failed. Retrying in ${delay}ms...`, 'AI_BRIDGE');
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     },
@@ -115,10 +109,11 @@ export const aiService = {
         logger.info(`[COMPARE REQUEST] Frontend initiated comparison analysis...`, 'AI_BRIDGE');
         
         let attempt = 0;
-        const maxRetries = 2;
+        const maxAttempts = 3;
+        const backoffTimes = [500, 1000, 2000];
         const timeoutMs = 8000;
         
-        while (attempt <= maxRetries) {
+        while (attempt < maxAttempts) {
             attempt++;
             try {
                 const responsePromise = fetch(url, {
@@ -142,8 +137,8 @@ export const aiService = {
                 return data;
             } catch (err) {
                 logger.error(`[COMPARE REQUEST ERROR] Attempt ${attempt} failed: ${err.message}`, err, 'AI_BRIDGE');
-                if (attempt > maxRetries) {
-                    logger.warn(`[COMPARE FALLBACK] Product comparison failed. Returning structural offline fallback analysis.`, 'AI_BRIDGE');
+                if (attempt >= maxAttempts) {
+                    logger.warn(`[COMPARE FALLBACK] All ${maxAttempts} attempts failed. Product comparison failed. Returning structural offline fallback analysis.`, 'AI_BRIDGE');
                     return {
                         analysis: `⚖️ **NEURAL COMPARISON MODE ENABLED (Offline Fallback)**\n\n` +
                                   `Unable to contact the AI comparative service. Below is the structural summary of products:\n\n` +
@@ -152,7 +147,10 @@ export const aiService = {
                                   `🤖 *Please verify the FastAPI server status on port 8000 to enable detailed deep clinical comparisons.*`
                     };
                 }
-                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const delay = backoffTimes[attempt - 1];
+                logger.warn(`[RETRY] Attempt ${attempt} failed. Retrying in ${delay}ms...`, 'AI_BRIDGE');
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     },
@@ -164,10 +162,11 @@ export const aiService = {
         logger.info(`[SCRAPER REQUEST] Scraping live price for: "${productName}"`, 'AI_BRIDGE');
         
         let attempt = 0;
-        const maxRetries = 2;
+        const maxAttempts = 3;
+        const backoffTimes = [500, 1000, 2000];
         const timeoutMs = 8000;
         
-        while (attempt <= maxRetries) {
+        while (attempt < maxAttempts) {
             attempt++;
             try {
                 const responsePromise = fetch(url, {
@@ -191,8 +190,8 @@ export const aiService = {
                 return data;
             } catch (err) {
                 logger.error(`[SCRAPER REQUEST ERROR] Attempt ${attempt} failed: ${err.message}`, err, 'AI_BRIDGE');
-                if (attempt > maxRetries) {
-                    logger.warn(`[SCRAPER FALLBACK] Price scraping failed. Returning static retail listings.`, 'AI_BRIDGE');
+                if (attempt >= maxAttempts) {
+                    logger.warn(`[SCRAPER FALLBACK] All ${maxAttempts} attempts failed. Price scraping failed. Returning static retail listings.`, 'AI_BRIDGE');
                     return {
                         product_name: productName,
                         listings: [
@@ -201,7 +200,10 @@ export const aiService = {
                         ]
                     };
                 }
-                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const delay = backoffTimes[attempt - 1];
+                logger.warn(`[RETRY] Attempt ${attempt} failed. Retrying in ${delay}ms...`, 'AI_BRIDGE');
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     },
