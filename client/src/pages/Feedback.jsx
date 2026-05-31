@@ -14,21 +14,12 @@ const getFeedbackKey = () => {
     }
 };
 
-const FALLBACK_PRODUCTS = [
-    "The Derma Co facewash",
-    "Himalaya facewash",
-    "Mamaearth facewash",
-    "QuantumBook Pro 15",
-    "CyberRig X10",
-    "AeroPhone 14 Max"
-];
-
 const Feedback = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [publicFeedbacks, setPublicFeedbacks] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
-    const [products, setProducts] = useState(FALLBACK_PRODUCTS);
+    const [products, setProducts] = useState([]);
     const [selectedFeedbackId, setSelectedFeedbackId] = useState(null);
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
@@ -61,14 +52,14 @@ const Feedback = () => {
     const fetchProducts = async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/api/products/getProducts`);
-            if (!res.ok) throw new Error('Failed');
+            if (!res.ok) throw new Error('Failed to fetch products');
             const resJson = await res.json();
             const data = Array.isArray(resJson) ? resJson : (resJson.data || []);
             if (data && data.length > 0) {
                 setProducts(data.map(p => p.name));
             }
         } catch (err) {
-            console.warn('Using fallback product list:', err.message);
+            console.error('Error fetching product list for feedback selector:', err.message);
         }
     };
 

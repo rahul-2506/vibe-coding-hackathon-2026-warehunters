@@ -375,12 +375,8 @@ export const productService = {
                 throw new Error('Database select returned an empty array.');
             }
         } catch (err) {
-            console.warn('[productService DB WARNING] Supabase connection failed or database is unpopulated. Falling back to high-fidelity memory catalog.', err.message);
-            // Standby memory fallback
-            const megaCatalog = buildMegaCatalog();
-            inMemoryCache = megaCatalog;
-            lastCacheTime = now;
-            return megaCatalog;
+            console.error('[productService DB ERROR] Supabase connection failed or database query erred:', err.message);
+            throw err;
         }
     },
 

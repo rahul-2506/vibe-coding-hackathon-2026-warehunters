@@ -51,45 +51,40 @@ const Products = () => {
         'Others'
     ];
 
+    const fetchData = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            // Fetch Products
+            const prodRes = await fetch(`${API_BASE_URL}/api/products/getProducts`);
+            if (!prodRes.ok) throw new Error('Failed to fetch from DB');
+            const resJson = await prodRes.json();
+            const prodData = Array.isArray(resJson) ? resJson : (resJson.data || []);
+            
+            // Double safety sanitization on client side for image URLs
+            const sanitizedData = prodData.map(p => {
+                let img = p.image_url || p.thumbnail || '';
+                if (img && img.includes('cdn.dummyjson.com/product-images/')) {
+                    img = img.replace('cdn.dummyjson.com/product-images/', 'cdn.dummyjson.com/products/images/');
+                }
+                return {
+                    ...p,
+                    name: p.title || p.name || 'Unknown Product',
+                    image_url: img,
+                    thumbnail: img
+                };
+            });
+
+            setProducts(sanitizedData);
+        } catch (err) {
+            console.error("Error loading products catalog:", err);
+            setError("Unable to load products");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Fetch Products
-                const prodRes = await fetch(`${API_BASE_URL}/api/products/getProducts`);
-                if (!prodRes.ok) throw new Error('Failed to fetch from DB');
-                const resJson = await prodRes.json();
-                const prodData = Array.isArray(resJson) ? resJson : (resJson.data || []);
-                
-                // Double safety sanitization on client side for image URLs
-                const sanitizedData = prodData.map(p => {
-                    let img = p.image_url || p.thumbnail || '';
-                    if (img && img.includes('cdn.dummyjson.com/product-images/')) {
-                        img = img.replace('cdn.dummyjson.com/product-images/', 'cdn.dummyjson.com/products/images/');
-                    }
-                    return {
-                        ...p,
-                        name: p.title || p.name || 'Unknown Product',
-                        image_url: img,
-                        thumbnail: img
-                    };
-                });
-
-                setProducts(sanitizedData);
-            } catch (err) {
-                console.warn("DB unavailable, loading mock products for UI demonstration.");
-                setProducts([
-                    { id: 101, name: 'The Derma Co 1% Salicylic Acid Facewash', title: 'The Derma Co 1% Salicylic Acid Facewash', price: 15.00, category: 'Skincare & Beauty', rating: 4.8, brand: 'The Derma Co', stock: 25, trust_score: 95, image_url: 'https://cdn.dummyjson.com/products/images/beauty/Essence%20Mascara%20Lash%20Princess/thumbnail.png' },
-                    { id: 102, name: 'Himalaya Purifying Neem Facewash', title: 'Himalaya Purifying Neem Facewash', price: 8.50, category: 'Skincare & Beauty', rating: 4.5, brand: 'Himalaya', stock: 40, trust_score: 82, image_url: 'https://cdn.dummyjson.com/products/images/beauty/Eyeshadow%20Palette%20with%20Mirror/thumbnail.png' },
-                    { id: 103, name: 'QuantumBook Pro 15', title: 'QuantumBook Pro 15', price: 1499.99, category: 'Electronics', rating: 4.9, brand: 'Quantum', stock: 12, trust_score: 92, image_url: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=500' },
-                    { id: 104, name: 'CyberRig X10', title: 'CyberRig X10', price: 2100.00, category: 'Electronics', rating: 4.7, brand: 'CyberRig', stock: 5, trust_score: 88, image_url: 'https://images.unsplash.com/photo-1600861194942-f883de0dfe96?w=500' },
-                    { id: 105, name: 'Classic Wooden Dining Table', title: 'Classic Wooden Dining Table', price: 450.00, category: 'Home & Living', rating: 4.3, brand: 'RusticWood', stock: 15, trust_score: 75, image_url: 'https://cdn.dummyjson.com/products/images/furniture/Annibale%20Colombo%20Bed/thumbnail.png' },
-                    { id: 106, name: 'Organic Green Tea Pack', title: 'Organic Green Tea Pack', price: 12.99, category: 'Groceries', rating: 4.6, brand: 'NatureBrew', stock: 80, trust_score: 91, image_url: 'https://cdn.dummyjson.com/products/images/groceries/Apple/thumbnail.png' }
-                ]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchData();
     }, []);
 
@@ -422,8 +417,13 @@ const Products = () => {
                 {loading ? (
                     <SkeletonLoader type="product-grid" count={6} />
                 ) : error ? (
-                    <div className="error-banner">
-                        <AlertCircle /> {error}
+                    <div className="empty-results glass-panel animate-glow" style={{ textAlign: 'center', padding: '3rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', width: '100%', maxWidth: '600px', margin: '2rem auto' }}>
+                        <AlertCircle size={48} className="text-error" style={{ color: '#ef4444' }} />
+                        <h3 style={{ marginTop: '0.5rem', fontSize: '1.25rem', color: '#fff' }}>Unable to load products</h3>
+                        <p className="text-muted" style={{ maxWidth: '400px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>Verify that the database server is running and check your local network connection. Placeholders or unconfigured environments will prevent listing.</p>
+                        <button className="primary-btn mt-2" onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', background: 'var(--accent-color)', border: 'none', color: '#fff', fontWeight: 'bold' }}>
+                            <RefreshCw size={16} /> Retry Connection
+                        </button>
                     </div>
                 ) : sortedProducts.length === 0 ? (
                     <div className="empty-results glass-panel">
