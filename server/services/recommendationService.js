@@ -151,7 +151,7 @@ export const recommendationService = {
                     pTrust = Math.round(avgTrust);
                 }
             } catch (dbErr) {
-                // Keep default
+                logger.warn(`[DATABASE] Failed to fetch trust score reviews for product ${prod.id}: ${dbErr.message}`, 'RECOMMENDATION');
             }
             const trustScorePoints = (pTrust / 100.0) * 20.0;
 
