@@ -7,13 +7,20 @@ import { logger } from './utils/logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(
-    supabaseUrl || 'https://placeholder.supabase.co',
-    supabaseAnonKey || 'placeholder'
-);
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder.supabase.co')) {
+    const errorMsg = "CRITICAL INITIALIZATION ERROR: Supabase credentials (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) must be defined and cannot contain placeholder values.";
+    console.error('\x1b[31m%s\x1b[0m', '==================================================');
+    console.error('\x1b[31m%s\x1b[0m', '  FATAL: INVALID OR MISSING DATABASE CREDENTIALS  ');
+    console.error('\x1b[31m%s\x1b[0m', '==================================================');
+    console.error('\x1b[31m%s\x1b[0m', errorMsg);
+    console.error('\x1b[31m%s\x1b[0m', '==================================================');
+    throw new Error(errorMsg);
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const db = {
     supabase,
