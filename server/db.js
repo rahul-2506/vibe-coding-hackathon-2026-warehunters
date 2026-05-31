@@ -30,10 +30,9 @@ const db = {
             }
             logger.info('[DB] Supabase schema connectivity test passed.', 'DATABASE');
         } catch (err) {
-            logger.warn(`[DB] Supabase health test failed: ${err.message}. Server booting in standby mode.`, 'DATABASE');
+            logger.error(`[DB] Supabase health test failed: ${err.message}. Mandating active connection.`, 'DATABASE');
+            throw err;
         }
-        
-        return Promise.resolve();
     }
 };
 

@@ -19,6 +19,9 @@ import feedbackRoutes from './routes/feedback.js';
 import aiRoutes from './routes/ai.js';
 import compareRoutes from './routes/compare.js';
 
+// AI Service
+import { aiService } from './services/aiService.js';
+
 // Rate Limiting Middlewares
 import { authLimiter } from './middleware/rateLimiter.js';
 
@@ -33,6 +36,29 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(loggingMiddleware);
+
+// Centralized Health Check Endpoint
+app.get('/api/health', async (req, res) => {
+    let dbOk = false;
+    try {
+        const { error } = await db.supabase.from('products').select('id').limit(1);
+        dbOk = !error;
+    } catch (e) {
+        dbOk = false;
+    }
+
+    const aiOk = await aiService.verifyAIHealth();
+    const allHealthy = dbOk && aiOk;
+
+    const payload = {
+        backend: true,
+        database: dbOk,
+        ai_service: aiOk,
+        timestamp: new Date().toISOString()
+    };
+
+    return res.status(allHealthy ? 200 : 503).json(payload);
+});
 
 // 2. Register Routes
 app.use('/api/auth', authLimiter);
