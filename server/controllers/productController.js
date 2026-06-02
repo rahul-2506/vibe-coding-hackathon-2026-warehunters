@@ -5,20 +5,21 @@ import { response } from '../utils/response.js';
 export const productController = {
     async getAll(req, res, next) {
         try {
-            const { page, limit, category, q, sort } = req.query;
+            const { page, limit, category, subcategory, q, sort } = req.query;
             
             if (page || limit) {
                 const paginated = await productService.getPaginatedProducts({
                     page: Number(page) || 1,
                     limit: Number(limit) || 24,
                     category,
+                    subcategory,
                     searchQuery: q,
                     sort
                 });
                 return response.success(res, paginated);
             }
             
-            const products = await productService.getAllProducts();
+            const products = await productService.searchProducts(q, category, sort, subcategory);
             return response.success(res, products);
         } catch (err) {
             next(err);

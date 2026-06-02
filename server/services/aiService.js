@@ -29,7 +29,7 @@ export const aiService = {
         }
     },
 
-    async ragChat(message) {
+    async ragChat(message, geminiKey = null, openaiKey = null) {
         const mlServiceUrl = await this.getMLServiceUrl();
         const url = `${mlServiceUrl}/rag_chat`;
         
@@ -45,9 +45,13 @@ export const aiService = {
             try {
                 logger.info(`[CHAT REQUEST] Sending request to Python AI Server (Attempt ${attempt}/${maxAttempts})...`, 'AI_BRIDGE');
                 
+                const headers = { 'Content-Type': 'application/json' };
+                if (geminiKey) headers['x-gemini-key'] = geminiKey;
+                if (openaiKey) headers['x-openai-key'] = openaiKey;
+
                 const responsePromise = fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ message })
                 });
                 
@@ -102,7 +106,7 @@ export const aiService = {
         }
     },
 
-    async compareProducts(product1, product2) {
+    async compareProducts(product1, product2, geminiKey = null, openaiKey = null) {
         const mlServiceUrl = await this.getMLServiceUrl();
         const url = `${mlServiceUrl}/compare_analysis`;
         
@@ -116,9 +120,13 @@ export const aiService = {
         while (attempt < maxAttempts) {
             attempt++;
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (geminiKey) headers['x-gemini-key'] = geminiKey;
+                if (openaiKey) headers['x-openai-key'] = openaiKey;
+
                 const responsePromise = fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({ product1, product2 })
                 });
                 

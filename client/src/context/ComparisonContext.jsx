@@ -20,13 +20,11 @@ export const ComparisonProvider = ({ children }) => {
         }
         
         if (selectedProducts.length >= 2) {
-            // Replace the second one or just ignore?
-            // Most users expect a replacement or a warning. 
-            // We'll replace the second one for simplicity in this flow.
-            setSelectedProducts(prev => [prev[0], product]);
-        } else {
-            setSelectedProducts(prev => [...prev, product]);
+            alert("Maximum comparison limit reached.");
+            return;
         }
+        
+        setSelectedProducts(prev => [...prev, product]);
     };
 
     const removeFromComparison = (productId) => {

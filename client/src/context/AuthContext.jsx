@@ -13,6 +13,14 @@ export const AuthProvider = ({ children }) => {
 
   /* ── Listen to Supabase auth state ── */
   useEffect(() => {
+    const isGuest = localStorage.getItem('rl-guest-session');
+    if (isGuest === 'true') {
+      setUser({ id: 'guest', email: 'guest@reviewlens.local', user_metadata: { username: 'Guest' } });
+      setSession({ user: { id: 'guest' } });
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session: sess } }) => {
       setSession(sess);
       setUser(sess?.user ?? null);
@@ -30,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
   /* ── Fetch profile whenever user changes ── */
   useEffect(() => {
-    if (!user) { setProfile(null); return; }
+    if (!user || user.id === 'guest') { setProfile(null); return; }
 
     supabase
       .from('profiles')
@@ -47,6 +55,13 @@ export const AuthProvider = ({ children }) => {
 
   /* ── Auth helpers ── */
   const clearError = () => setError(null);
+
+  const loginAsGuest = () => {
+    setError(null);
+    localStorage.setItem('rl-guest-session', 'true');
+    setUser({ id: 'guest', email: 'guest@reviewlens.local', user_metadata: { username: 'Guest' } });
+    setSession({ user: { id: 'guest' } });
+  };
 
   const signUp = async (email, password, username) => {
     setError(null);
@@ -77,6 +92,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = async () => {
+    localStorage.removeItem('rl-guest-session');
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -85,7 +101,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfile = async (updates) => {
-    if (!user) return;
+    if (!user || user.id === 'guest') return;
     const { data, error: err } = await supabase
       .from('profiles')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -99,7 +115,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user, session, profile, loading, error,
-      signUp, signIn, signInWithGoogle, signOut, updateProfile, clearError,
+      signUp, signIn, signInWithGoogle, signOut, updateProfile, clearError, loginAsGuest,
     }}>
       {children}
     </AuthContext.Provider>

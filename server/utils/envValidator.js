@@ -45,6 +45,15 @@ export const envValidator = {
             missing.push('AI_API_KEY (GEMINI_API_KEY or GROQ_API_KEY)');
         }
 
+        // 6. Validate FRONTEND_URL
+        const frontendUrl = process.env.FRONTEND_URL;
+        if (!frontendUrl) {
+            missing.push('FRONTEND_URL');
+        } else if (frontendUrl.includes('placeholder') || frontendUrl === '') {
+            errors.push('FRONTEND_URL cannot be a placeholder value.');
+        }
+
+
         // Halt startup immediately on failures
         if (missing.length > 0 || errors.length > 0) {
             console.error('\x1b[31m%s\x1b[0m', '==================================================');

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { supabaseConfigured } from '../config/supabaseClient';
 
 const FADE = {
   hidden: { opacity: 0, y: 16 },
@@ -19,7 +20,7 @@ const ITEM = {
 };
 
 const RobotAuthForm = () => {
-  const { signIn, signUp, signInWithGoogle, user, loading: authLoading, error: authError } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, loading: authLoading, error: authError, loginAsGuest } = useAuth();
   const navigate = useNavigate();
 
   const [isLogin, setIsLogin]     = useState(true);
@@ -233,7 +234,7 @@ const RobotAuthForm = () => {
               whileHover={!busy ? { y: -2, scale: 1.015 } : {}}
               whileTap={!busy ? { y: 0, scale: 0.98 } : {}}
               variants={ITEM}
-              style={{ cursor: busy ? 'not-allowed' : 'pointer' }}
+              style={{ cursor: busy ? 'not-allowed' : 'pointer', marginBottom: '0.75rem' }}
             >
               {/* Google G icon */}
               <svg width="18" height="18" viewBox="0 0 48 48" style={{ marginRight: '0.5rem' }}>
@@ -244,6 +245,35 @@ const RobotAuthForm = () => {
                 <path fill="none" d="M0 0h48v48H0z"/>
               </svg>
               {busy ? 'Connecting…' : 'Continue with Google'}
+            </motion.button>
+
+            <motion.button
+              className="guest-btn"
+              onClick={loginAsGuest}
+              type="button"
+              whileHover={{ y: -2, scale: 1.015 }}
+              whileTap={{ y: 0, scale: 0.98 }}
+              variants={ITEM}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: 'var(--r-md)',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: !supabaseConfigured ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                color: !supabaseConfigured ? '#fbbf24' : 'var(--text-color)',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                fontFamily: 'var(--font-body)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                marginBottom: '1rem'
+              }}
+            >
+              <span>👤</span> {!supabaseConfigured ? 'Enter Offline Mode (Demo)' : 'Continue as Guest'}
             </motion.button>
 
             <p className="toggle-auth">

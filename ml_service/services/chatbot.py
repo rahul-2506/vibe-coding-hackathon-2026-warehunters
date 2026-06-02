@@ -21,6 +21,26 @@ def local_rag_fallback(relevant_kb, matched_products, query):
     """
     Generates a high-fidelity local Markdown synthesis response when LLM APIs fail or timeout.
     """
+    query_lower = query.lower().replace('.', '').replace('!', '').replace('?', '').strip()
+    
+    # 0. Check for general greetings/small talk first
+    greetings = ['hello', 'hi', 'hey', 'greetings', 'sup', 'yo', 'howdy', 'hola', 'whats up', 'hello there', 'hi there', 'hey there']
+    if any(g == query_lower or query_lower.startswith(g + ' ') or query_lower.endswith(' ' + g) for g in greetings):
+        return "👋 **Hello! I'm VChat, your Clinical AI Skincare Consultant.**\n\nHow can I help you with your skincare routine today? I can help you find products, compare formulas, check review trust scores, or explain clinical active ingredients like Niacinamide or Salicylic Acid!"
+
+    # Check for small talk / how are you / who are you
+    if any(x in query_lower for x in ["how are you", "how you doing", "hows it going"]):
+        return "😊 **I'm doing fantastic, thank you for asking!**\n\nAs your AI skincare expert, I'm fully charged and ready to analyze formulas, build routines, or audit product reviews. How is your skin feeling today?"
+        
+    if any(x in query_lower for x in ["who are you", "what is vchat"]):
+        return "🌟 **I am VChat, your intelligent Clinical AI Skincare Shopping Assistant.**\n\nUnlike standard customer service bots, I have deep access to product databases, chemical ingredient safety profiles, and verified review fraud scanners. Let's find your perfect routine!"
+        
+    if "joke" in query_lower or "laugh" in query_lower:
+        return "🧴 **Here's a quick skincare joke for you:**\n\n*Why did the skin cell go to school?*\n*To get a little brighter, but it ended up getting exfoliated instead!* 💫\n\nHow can I help you brighten your actual routine today?"
+
+    if any(x in query_lower for x in ["thank you", "thanks", "awesome"]):
+        return "💖 **You are very welcome!** It is my absolute pleasure to guide you. Let me know if you want to compare other brands or tweak your current routine steps."
+
     response_md = ""
     
     # 1. Product comparison mode
@@ -93,7 +113,32 @@ def execute_groq_rag(groq_client, model_name, system_prompt, user_prompt):
     return chat_completion.choices[0].message.content
 
 
-def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_MODEL, GROQ_MODEL):
+def execute_openai_request(api_key: str, system_prompt: str, user_prompt: str) -> str:
+    """
+    Direct HTTPS proxy to OpenAI completions endpoint using request payloads.
+    """
+    import requests
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.7
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=12)
+    if response.ok:
+        return response.json()["choices"][0]["message"]["content"]
+    else:
+        raise ValueError(f"OpenAI API error {response.status_code}: {response.text}")
+
+
+def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_MODEL, GROQ_MODEL, openai_key=None):
     """
     Coordinates semantic retrieval, queries Supabase, calls LLMs with 10s timeouts, and falls back gracefully.
     """
@@ -217,20 +262,30 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
         for p in matched_products[:3]:
             context += f"- {p['name']} (${p['price']}): {p['explanation'] or p['description']}\n"
 
-        system_prompt = """You are the Lead Clinical Scientist for V-CHAT (AI Skincare & Product Intelligence).
-        Your primary directive is to provide highly accurate, scientifically-grounded advice.
+        system_prompt = """You are the Lead Clinical Skincare Expert & Shopping Assistant for V-CHAT.
+        Your personality is 50% ChatGPT (incredibly human-like, conversational, witty, empathetic), 25% Expert Skincare Consultant, and 25% Intelligent Shopping Assistant.
+        
         INSTRUCTIONS:
-        1. **Clinical Foundation**: Ground every answer in the provided SCIENTIFIC DATA.
-        2. **Inventory Synergy**: When recommending products, use the exact names and prices from the PRODUCT INVENTORY.
-        3. **The 60-Second Rule**: If applicable, mention that facewashes are low-contact systems and serums are better for long-term treatment.
-        4. **Tone**: Clinical, authoritative, yet helpful. Use terms like "bioavailability," "melanin suppression," and "sebum regulation."
-        5. **Structure**: Use Markdown hierarchy (###) for sections.
-        6. **Honesty**: If the KNOWLEDGE BASE is missing specific data for the query, say: "I am currently scanning our peer-reviewed literature for specific data on [topic], but based on general clinical understanding..."
-        7. **Scope**: If the question is entirely out of scope for skincare/products, say you don't have scientific papers on that topic politely."""
+        1. **Talk like a human**: Speak naturally, vary your opening sentences, use active empathy. NEVER sound robotic, machine-like, or scripted.
+        2. **Grounded clinical logic**: Strictly ground recommendations and science in the provided SCIENTIFIC DATA and PRODUCT INVENTORY. If recommending products, use their exact names and prices.
+        3. **Missing Profile Data**: If the user is asking for product recommendations or a routine but has not mentioned their skin type, concern, or budget, ask helpful, friendly step-by-step follow-up questions instead of guessing.
+        4. **Tone**: Curiously friendly, authoritative yet completely approachable. Use premium terminologies naturally (e.g. "stratum corneum," "sebum regulation," "lipid barrier") but keep it conversational.
+        5. **Small Talk & Humor**: Handle small talk, humor, jokes, and greetings naturally. Do not force product recommendations into casual small talk.
+        6. **Formatting**: Use clean Markdown hierarchy (###) for structure.
+        """
         
         user_prompt = f"USER QUESTION: \"{query}\"\n\n--- CONTEXTUAL DATASETS ---\n{context}"
 
-        # Try Gemini first with 10s timeout
+        # Try OpenAI first if dynamic key is available
+        if openai_key and openai_key.strip():
+            try:
+                print("[CHATBOT SERVICE] Requesting synthesis from OpenAI (gpt-4o-mini)...")
+                response_text = execute_openai_request(openai_key.strip(), system_prompt, user_prompt)
+                return response_text
+            except Exception as e:
+                print(f"[CHATBOT SERVICE] OpenAI RAG attempt failed: {e}. Trying other engines.")
+
+        # Try Gemini second with 10s timeout
         if gemini_client and GEMINI_MODEL:
             try:
                 print("[CHATBOT SERVICE] Requesting synthesis from Gemini with 10s timeout...")
@@ -246,7 +301,7 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
             except Exception as e:
                 print(f"[CHATBOT SERVICE] Gemini RAG attempt timed out or failed: {e}. Trying Groq fallback.")
 
-        # Try Groq second with 10s timeout
+        # Try Groq third with 10s timeout
         if groq_client and GROQ_MODEL:
             try:
                 print("[CHATBOT SERVICE] Requesting synthesis from Groq with 10s timeout...")

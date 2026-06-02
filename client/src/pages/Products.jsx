@@ -17,6 +17,30 @@ import { API_BASE_URL } from '../config/api';
 import SkeletonLoader from '../components/SkeletonLoader';
 import './ProductsScreen.css';
 
+const getProductSubcategory = (p) => {
+    if (p.subcategory) return p.subcategory;
+    const nameLower = (p.title || p.name || '').toLowerCase();
+    if (nameLower.includes('wash') || nameLower.includes('cleanser') || nameLower.includes('cleansing') || nameLower.includes('micellar')) {
+        return 'Face Wash';
+    }
+    if (nameLower.includes('sunscreen') || nameLower.includes('spf') || nameLower.includes('sun block') || nameLower.includes('sun protection')) {
+        return 'Sunscreen';
+    }
+    if (nameLower.includes('moisturizer') || nameLower.includes('cream') || nameLower.includes('butter') || nameLower.includes('lotion')) {
+        return 'Moisturizer';
+    }
+    if (nameLower.includes('serum') || nameLower.includes('gel') || nameLower.includes('mist')) {
+        return 'Serum';
+    }
+    if (nameLower.includes('toner')) {
+        return 'Toner';
+    }
+    if (nameLower.includes('mask') || nameLower.includes('scrub') || nameLower.includes('peel')) {
+        return 'Masks & Scrubs';
+    }
+    return 'Others';
+};
+
 const Products = () => {
     const navigate = useNavigate();
     
@@ -29,6 +53,7 @@ const Products = () => {
     // Filter states
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
+    const [activeSubcategory, setActiveSubcategory] = useState('All');
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
     const [selectedBrands, setSelectedBrands] = useState([]);
@@ -93,6 +118,7 @@ const Products = () => {
         setVisibleCount(24);
     }, [
         activeCategory,
+        activeSubcategory,
         searchQuery,
         minPrice,
         maxPrice,
@@ -114,6 +140,7 @@ const Products = () => {
     const handleClearAll = () => {
         setSearchQuery('');
         setActiveCategory('All');
+        setActiveSubcategory('All');
         setMinPrice('');
         setMaxPrice('');
         setSelectedBrands([]);
@@ -137,6 +164,14 @@ const Products = () => {
         // 1. Category filter
         if (activeCategory !== 'All' && p.category !== activeCategory) {
             return false;
+        }
+
+        // 1b. Subcategory filter for Skincare & Beauty
+        if (activeCategory === 'Skincare & Beauty' && activeSubcategory !== 'All') {
+            const prodSubcat = p.subcategory || getProductSubcategory(p);
+            if (prodSubcat !== activeSubcategory) {
+                return false;
+            }
         }
 
         // 2. Search query filter
@@ -252,18 +287,57 @@ const Products = () => {
                     <ul className="category-list">
                         {categories.map(cat => {
                             const count = getCategoryCount(cat);
+                            const isSkincare = cat === 'Skincare & Beauty';
                             return (
-                                <li 
-                                    key={cat} 
-                                    className={`category-item ${activeCategory === cat ? 'active' : ''}`}
-                                    onClick={() => {
-                                        setActiveCategory(cat);
-                                        setSelectedBrands([]); // reset brand filter on category shift
-                                    }}
-                                >
-                                    <span className="category-name">{cat}</span>
-                                    <span className="category-count">{count}</span>
-                                </li>
+                                <React.Fragment key={cat}>
+                                    <li 
+                                        className={`category-item ${activeCategory === cat ? 'active' : ''}`}
+                                        onClick={() => {
+                                            setActiveCategory(cat);
+                                            setActiveSubcategory('All');
+                                            setSelectedBrands([]); // reset brand filter on category shift
+                                        }}
+                                    >
+                                        <span className="category-name">{cat}</span>
+                                        <span className="category-count">{count}</span>
+                                    </li>
+                                    
+                                    {isSkincare && activeCategory === 'Skincare & Beauty' && (
+                                        <ul className="subcategory-list animate-slide-down">
+                                            {[
+                                                { name: 'All', icon: '✨' },
+                                                { name: 'Face Wash', icon: '💧' },
+                                                { name: 'Sunscreen', icon: '☀️' },
+                                                { name: 'Moisturizer', icon: '🧴' },
+                                                { name: 'Serum', icon: '🧪' },
+                                                { name: 'Toner', icon: '🌸' },
+                                                { name: 'Masks & Scrubs', icon: '🎭' },
+                                                { name: 'Others', icon: '📦' }
+                                            ].map(sub => {
+                                                const subCount = products.filter(p => 
+                                                    p.category === 'Skincare & Beauty' && 
+                                                    (sub.name === 'All' || (p.subcategory || getProductSubcategory(p)) === sub.name)
+                                                ).length;
+                                                return (
+                                                    <li 
+                                                        key={sub.name}
+                                                        className={`subcategory-item ${activeSubcategory === sub.name ? 'active' : ''}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveSubcategory(sub.name);
+                                                        }}
+                                                    >
+                                                        <span className="subcategory-left">
+                                                            <span className="subcategory-icon">{sub.icon}</span>
+                                                            <span className="subcategory-name">{sub.name}</span>
+                                                        </span>
+                                                        <span className="subcategory-count">{subCount}</span>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </React.Fragment>
                             );
                         })}
                     </ul>

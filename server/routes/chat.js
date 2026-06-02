@@ -1,10 +1,10 @@
 import express from 'express';
-import { chatController } from '../controllers/chatController.js';
+import { vchatController } from '../controllers/vchatController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { chatLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-router.post('/', authMiddleware, chatLimiter, chatController.chat);
+router.post('/', authMiddleware, chatLimiter, vchatController.chat);
 
 export default router;

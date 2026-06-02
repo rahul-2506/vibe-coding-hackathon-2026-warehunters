@@ -80,6 +80,12 @@ export const queryRAG = async (prompt) => {
 
         // Default fallback if nothing found
         if (!responseText) {
+            const cleanQuery = lowerPrompt.replace(/[^\w\s]/g, '').trim();
+            const greetings = ['hello', 'hi', 'hey', 'greetings', 'sup', 'yo', 'howdy', 'hola', 'whats up', 'hello there', 'hi there', 'hey there'];
+            if (greetings.some(g => cleanQuery === g || cleanQuery.startsWith(g + ' ') || cleanQuery.endsWith(' ' + g))) {
+                return `👋 **Hello! I'm VChat, your Clinical AI Skincare Assistant.**\n\nHow can I assist you with your skincare journey today? I can guide you through a **Skincare Discovery Flow**, build a **personalized routine**, analyze **review authenticity**, or explain **active ingredients**!`;
+            }
+
             // Get a few unique topics for suggestions
             const uniqueTopics = [...new Set((allKnowledge || []).map(k => k.topic))].slice(0, 5);
             const suggestions = uniqueTopics.join(', ') || 'Salicylic Acid, Neem, Ubtan';

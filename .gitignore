@@ -1,31 +1,23 @@
-# Dependency folders
 node_modules/
 client/node_modules/
 server/node_modules/
-ml_service/venv/
 venv/
+win_venv/
+ml_service/venv/
+ml_service/win_venv/
 mooku/
-
-# Environment files
-.env
-client/.env
-server/.env
-ml_service/.env
-
-# Build and Cache outputs
 dist/
 client/dist/
 build/
-.cache/
-coverage/
+.env
+.env.*
 __pycache__/
 ml_service/__pycache__/
 ml_service/services/__pycache__/
 ml_service/utils/__pycache__/
 ml_service/pipelines/__pycache__/
 ml_service/models/__pycache__/
-
-# OS & Editor configurations
+.pytest_cache/
 .DS_Store
 .vscode/
 .idea/

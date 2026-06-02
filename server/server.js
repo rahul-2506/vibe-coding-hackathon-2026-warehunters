@@ -24,7 +24,7 @@ import compareRoutes from './routes/compare.js';
 import { aiService } from './services/aiService.js';
 
 // Rate Limiting Middlewares
-import { authLimiter } from './middleware/rateLimiter.js';
+import { authLimiter, chatLimiter, reviewLimiter, productsLimiter, aiLimiter } from './middleware/rateLimiter.js';
 
 // Logger Utility
 import { logger } from './utils/logger.js';
@@ -35,7 +35,38 @@ const app = express();
 
 // 1. Global Middlewares
 app.use(requestTracingMiddleware);
-app.use(cors());
+
+const allowedOrigins = new Set();
+const frontendUrl = process.env.FRONTEND_URL;
+const envAllowedOrigins = process.env.ALLOWED_ORIGINS;
+
+if (envAllowedOrigins) {
+    envAllowedOrigins.split(',').forEach(origin => {
+        if (origin.trim()) allowedOrigins.add(origin.trim());
+    });
+} else {
+    // Standard deployment-safe development defaults
+    allowedOrigins.add('http://localhost:3000');
+    allowedOrigins.add('http://localhost:5173');
+}
+
+if (frontendUrl) {
+    allowedOrigins.add(frontendUrl.trim());
+}
+
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.has(origin)) {
+            return callback(null, true);
+        } else {
+            logger.warn(`Rejected origin by CORS: ${origin}`, 'SECURITY');
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(loggingMiddleware);
 
@@ -50,22 +81,33 @@ app.get('/api/health', async (req, res) => {
     }
 
     const aiOk = await aiService.verifyAIHealth();
-    const allHealthy = dbOk && aiOk;
+    
+    let statusCode = 200;
+    let status = "healthy";
+    
+    if (!dbOk) {
+        statusCode = 503;
+        status = "failed";
+    } else if (!aiOk) {
+        statusCode = 200;
+        status = "degraded";
+    }
 
     const payload = {
         backend: true,
         database: dbOk,
         ai_service: aiOk,
+        status: status,
         timestamp: new Date().toISOString()
     };
 
-    return res.status(allHealthy ? 200 : 503).json(payload);
+    return res.status(statusCode).json(payload);
 });
 
 // 2. Register Routes
 app.use('/api/auth', authLimiter);
-app.use('/api/products', productRoutes);
-app.use('/api/recommend', recommendRoutes);
+app.use('/api/products', productsLimiter, productRoutes);
+app.use('/api/recommend', aiLimiter, recommendRoutes);
 
 // Redirect duplicate `/api/ai/recommend` -> `/api/recommend` to choose one canonical version
 app.all('/api/ai/recommend*', (req, res) => {
@@ -73,8 +115,8 @@ app.all('/api/ai/recommend*', (req, res) => {
     res.redirect(307, newPath);
 });
 
-app.use('/api/search', searchRoutes);
-app.use('/api/ai/chat', chatRoutes);
+app.use('/api/search', productsLimiter, searchRoutes);
+app.use('/api/ai/chat', aiLimiter, chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
 // Redirect duplicate `/api/feedbacks` -> `/api/feedback` to choose one canonical version
@@ -83,8 +125,8 @@ app.all('/api/feedbacks*', (req, res) => {
     res.redirect(307, newPath);
 });
 
-app.use('/api/ai', aiRoutes);
-app.use('/api/compare', compareRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
+app.use('/api/compare', aiLimiter, compareRoutes);
 
 // 3. Centralized Universal Error Handler Middleware
 app.use(errorMiddleware);
@@ -104,6 +146,12 @@ db.initialize()
         });
     })
     .catch(err => {
+        console.error('\x1b[31m%s\x1b[0m', '==================================================');
+        console.error('\x1b[31m%s\x1b[0m', '  FATAL ERROR: DATABASE INITIALIZATION FAILED     ');
+        console.error('\x1b[31m%s\x1b[0m', '==================================================');
+        console.error('\x1b[31m%s\x1b[0m', `The server failed to connect to Supabase: ${err.message}`);
+        console.error('\x1b[31m%s\x1b[0m', 'Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+        console.error('\x1b[31m%s\x1b[0m', '==================================================');
         logger.error('Fatal database initialization error. Shutting down process loudly.', err, 'BOOT');
         process.exit(1);
     });

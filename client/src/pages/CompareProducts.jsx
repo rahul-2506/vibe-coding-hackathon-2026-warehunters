@@ -1,197 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useComparison } from '../context/ComparisonContext';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    ArrowLeft, Star, ShoppingBag, Info, TrendingUp, 
-    ShieldCheck, Zap, Heart, GitCompare, Search, X, 
-    Sparkles, ShieldAlert, CheckCircle2, Award, ExternalLink 
+    ArrowLeft, GitCompare, Search, X, Sparkles, Zap, Heart
 } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../config/supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
-// Custom Glowing Radar Chart Component (React-19 compliant custom SVG)
-const GlowingRadarChart = ({ name1, name2, scorecard1, scorecard2 }) => {
-    const size = 300;
-    const center = size / 2;
-    const rMax = 100; // max radius inside svg
-    
-    const preferences = ["Safety", "Ingredients", "Value", "Skin Match", "Community"];
-    const scores1 = {
-        "Safety": scorecard1["Safety Score"] || 50,
-        "Ingredients": scorecard1["Ingredient Quality"] || 50,
-        "Value": scorecard1["Price Value"] || 50,
-        "Skin Match": scorecard1["Skin Compatibility"] || 50,
-        "Community": scorecard1["Community Rating"] || 50
-    };
-    const scores2 = {
-        "Safety": scorecard2["Safety Score"] || 50,
-        "Ingredients": scorecard2["Ingredient Quality"] || 50,
-        "Value": scorecard2["Price Value"] || 50,
-        "Skin Match": scorecard2["Skin Compatibility"] || 50,
-        "Community": scorecard2["Community Rating"] || 50
-    };
+// Extracted Sub-Components
+import RecommendationPanel from '../components/RecommendationPanel';
+import ComparisonCharts from '../components/ComparisonCharts';
+import ProductScoreCard from '../components/ProductScoreCard';
+import ComparisonTable from '../components/ComparisonTable';
 
-    const numPoints = preferences.length;
-    
-    // Calculates coordinate vertices for polygon plotting
-    const getCoordinates = (index, value) => {
-        const angle = (Math.PI * 2 / numPoints) * index - Math.PI / 2;
-        const radius = (value / 100) * rMax;
-        const x = center + radius * Math.cos(angle);
-        const y = center + radius * Math.sin(angle);
-        return { x, y };
-    };
-
-    // Concentric grid rings
-    const rings = [20, 40, 60, 80, 100];
-    
-    // Paths for product polygons
-    const points1 = preferences.map((pref, i) => {
-        const val = scores1[pref];
-        const coord = getCoordinates(i, val);
-        return `${coord.x},${coord.y}`;
-    }).join(' ');
-
-    const points2 = preferences.map((pref, i) => {
-        const val = scores2[pref];
-        const coord = getCoordinates(i, val);
-        return `${coord.x},${coord.y}`;
-    }).join(' ');
-
-    return (
-        <div className="flex flex-col items-center justify-center p-6 bg-slate-900/40 border border-white/5 rounded-3xl backdrop-blur-xl max-w-full w-full">
-            <h4 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-4">Preference Spectrum</h4>
-            
-            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
-                {/* Defs for neon gradients and glowing shadow filters */}
-                <defs>
-                    <radialGradient id="grad-center" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
-                        <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                    </radialGradient>
-                    
-                    <linearGradient id="neon-purple" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#a78bfa" />
-                        <stop offset="100%" stopColor="#6366f1" />
-                    </linearGradient>
-                    
-                    <linearGradient id="neon-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#34d399" />
-                        <stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                    
-                    <filter id="glow-purple" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="4" result="blur" />
-                        <feMerge>
-                            <feMergeNode in="blur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                    <filter id="glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="4" result="blur" />
-                        <feMerge>
-                            <feMergeNode in="blur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                </defs>
-
-                {/* Base center circle */}
-                <circle cx={center} cy={center} r={rMax} fill="url(#grad-center)" />
-
-                {/* Grid Web Concentric Rings */}
-                {rings.map((ring, idx) => (
-                    <circle 
-                        key={idx} 
-                        cx={center} 
-                        cy={center} 
-                        r={(ring / 100) * rMax} 
-                        fill="none" 
-                        stroke="rgba(255, 255, 255, 0.04)" 
-                        strokeWidth="1"
-                    />
-                ))}
-
-                {/* Spokes Axis Lines */}
-                {preferences.map((_, i) => {
-                    const coord = getCoordinates(i, 100);
-                    return (
-                        <line 
-                            key={i} 
-                            x1={center} 
-                            y1={center} 
-                            x2={coord.x} 
-                            y2={coord.y} 
-                            stroke="rgba(255, 255, 255, 0.05)" 
-                            strokeWidth="1"
-                            strokeDasharray="2,2"
-                        />
-                    );
-                })}
-
-                {/* Plot: Product 1 Polygon (Neon Purple / Indigo) */}
-                <polygon 
-                    points={points1} 
-                    fill="rgba(99, 102, 241, 0.12)" 
-                    stroke="url(#neon-purple)" 
-                    strokeWidth="2"
-                    filter="url(#glow-purple)"
-                />
-
-                {/* Plot: Product 2 Polygon (Neon Emerald) */}
-                <polygon 
-                    points={points2} 
-                    fill="rgba(16, 185, 129, 0.08)" 
-                    stroke="url(#neon-emerald)" 
-                    strokeWidth="2"
-                    filter="url(#glow-emerald)"
-                />
-
-                {/* Metric Vertex Text Labels */}
-                {preferences.map((pref, i) => {
-                    const labelDistance = 120; // pushes labels outside vertices slightly
-                    const angle = (Math.PI * 2 / numPoints) * i - Math.PI / 2;
-                    const x = center + labelDistance * Math.cos(angle);
-                    const y = center + labelDistance * Math.sin(angle);
-                    
-                    let anchor = "middle";
-                    if (Math.cos(angle) > 0.1) anchor = "start";
-                    else if (Math.cos(angle) < -0.1) anchor = "end";
-
-                    return (
-                        <text 
-                            key={i}
-                            x={x}
-                            y={y + 3}
-                            fill="rgba(148, 163, 184, 0.9)"
-                            fontSize="9"
-                            fontWeight="700"
-                            textAnchor={anchor}
-                            className="tracking-wider uppercase select-none font-sans"
-                        >
-                            {pref}
-                        </text>
-                    );
-                })}
-            </svg>
-
-            {/* Legend Labels */}
-            <div className="flex gap-4 mt-6 border-t border-white/5 pt-4 w-full justify-center">
-                <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 shadow-md"></div>
-                    <span className="text-xs font-bold text-slate-300 truncate max-w-[110px]">{name1}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 shadow-md"></div>
-                    <span className="text-xs font-bold text-slate-300 truncate max-w-[110px]">{name2}</span>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const CompareProducts = () => {
     const { selectedProducts, addToComparison, clearComparison } = useComparison();
@@ -852,291 +676,35 @@ const CompareProducts = () => {
                     transition={{ type: 'spring', damping: 20 }}
                     className="flex flex-col gap-10 relative z-10 w-full"
                 >
-                    {/* 1. EXECUTIVE SUMMARY & WINNER CARD */}
-                    <div className="bg-gradient-to-r from-purple-950/20 to-slate-900/40 border border-purple-500/20 rounded-3xl p-8 backdrop-blur-xl relative overflow-hidden flex flex-col lg:flex-row gap-8 items-center max-w-5xl mx-auto w-full shadow-2xl">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 blur-[80px] pointer-events-none rounded-full"></div>
-                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none rounded-full"></div>
+                    <RecommendationPanel 
+                        comparisonData={comparisonData} 
+                        p1={p1} 
+                        p2={p2} 
+                        isSaving={isSaving} 
+                        handleSaveComparison={handleSaveComparison} 
+                    />
 
-                        {/* Visual representation of Winner product */}
-                        <div className="flex flex-col items-center text-center shrink-0 w-64">
-                            <div className="relative p-6 bg-[#0e1320] border border-purple-500/20 rounded-3xl mb-4 shadow-xl w-44 h-44 flex items-center justify-center">
-                                <div className="absolute -top-2.5 -left-2.5 bg-amber-400 text-black p-2.5 rounded-full shadow-lg shadow-amber-500/20 rotate-[-12deg] flex items-center justify-center animate-bounce">
-                                    <Award size={18} />
-                                </div>
-                                <SafeImage src={comparisonData.winner.image_url} alt={comparisonData.winner.title} className="w-full h-full object-contain filter drop-shadow-[0_8px_15px_rgba(0,0,0,0.5)]" />
-                            </div>
-                            <h3 className="text-lg font-black text-white/95 px-2 line-clamp-2 leading-snug">{comparisonData.winner.title || comparisonData.winner.name}</h3>
-                            <p className="text-[10px] text-purple-400 uppercase tracking-widest font-black mt-1">Recommended Winner</p>
-                        </div>
+                    <ComparisonCharts 
+                        p1={p1} 
+                        p2={p2} 
+                        comparisonData={comparisonData} 
+                        scorecard1={scorecard1} 
+                        scorecard2={scorecard2} 
+                    />
 
-                        {/* AI explanation and affiliate button */}
-                        <div className="flex-1 flex flex-col">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Sparkles className="text-purple-400" size={16} />
-                                <span className="text-[10px] font-extrabold text-purple-300 tracking-widest uppercase">Skincare AI Analyst Commentary</span>
-                            </div>
-                            <div className="text-sm text-slate-300 leading-relaxed markdown-body mb-6 pr-4">
-                                {comparisonData.analysis ? (
-                                    comparisonData.analysis.split('\n').map((line, i) => {
-                                        if (line.startsWith('###')) {
-                                            return <h3 key={i} className="text-base font-black text-white mt-4 mb-2">{line.replace('###', '').trim()}</h3>;
-                                        }
-                                        return <p key={i} className="mb-2.5">{line}</p>;
-                                    })
-                                ) : (
-                                    <p>AI generated comparative clinical verdict is complete.</p>
-                                )}
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-4 mt-auto">
-                                <button 
-                                    onClick={() => alert(`Redirecting to affiliate deal for ${comparisonData.winner.title || comparisonData.winner.name}...`)}
-                                    className="bg-emerald-500 hover:bg-emerald-600 text-black px-6 py-3 rounded-xl font-bold text-xs tracking-wider uppercase flex items-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95 transition-all border border-emerald-400/20"
-                                >
-                                    <ShoppingBag size={14} /> Direct Buy {comparisonData.winner.price}/- <ExternalLink size={12} />
-                                </button>
-                                <button 
-                                    onClick={handleSaveComparison}
-                                    disabled={isSaving}
-                                    className="bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 px-5 py-3 rounded-xl font-bold text-xs tracking-wider uppercase active:scale-95 transition-all disabled:opacity-50"
-                                >
-                                    {isSaving ? "Saving..." : "Save Comparison"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <ProductScoreCard 
+                        scorecard1={scorecard1} 
+                        scorecard2={scorecard2} 
+                    />
 
-                    {/* 2. SKIN SUITABILITY DEEP CALLOUTS (AI SUMMARY) */}
-                    <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full">
-                        <div className="bg-slate-900/30 border border-purple-500/10 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl pointer-events-none rounded-full"></div>
-                            <div className="flex items-center gap-2 mb-3 text-purple-400">
-                                <Sparkles size={16} />
-                                <h4 className="text-xs font-bold uppercase tracking-widest">Why {p1?.name?.substring(0, 15)}... is better for Oily Skin</h4>
-                            </div>
-                            <p className="text-xs text-slate-400 leading-relaxed">
-                                Formulated with targeted bioactive compounds that penetrate deep into upper dermal layers to actively clear excess sebum. The lightweight formulation guarantees high tolerability without leaving heavy lipid traces, keeping skin texture clean and matte.
-                            </p>
-                        </div>
-                        
-                        <div className="bg-slate-900/30 border border-emerald-500/10 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl pointer-events-none rounded-full"></div>
-                            <div className="flex items-center gap-2 mb-3 text-emerald-400">
-                                <Sparkles size={16} />
-                                <h4 className="text-xs font-bold uppercase tracking-widest">Why {p2?.name?.substring(0, 15)}... is better for Sensitive Skin</h4>
-                            </div>
-                            <p className="text-xs text-slate-400 leading-relaxed">
-                                Employs a highly gentle humectant barrier repair network that binds moisture molecules to prevent epidermal water loss. Free of intensive peeling acids, it acts as a calming cellular buffer to soothe redness and minimize friction reactions.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* 3. DOCK: RADAR SPECTRA & FAKE REVIEW TRUST GAUGES */}
-                    <div className="grid lg:grid-cols-2 gap-8 items-start w-full">
-                        {/* Custom Radar Spectrum Chart */}
-                        <GlowingRadarChart 
-                            scorecard1={scorecard1}
-                            scorecard2={scorecard2}
-                            name1={p1.name}
-                            name2={p2.name}
-                        />
-
-                        {/* Fake Review Probability & Integrity Audit Cards */}
-                        <div className="flex flex-col gap-6 w-full">
-                            <div className="bg-slate-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
-                                <div className="flex items-center gap-2.5 mb-4 text-purple-400">
-                                    <ShieldAlert size={18} />
-                                    <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {p1.name.substring(0, 18)}...</h4>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative shrink-0 flex items-center justify-center">
-                                        <svg width="70" height="70" className="rotate-[-90deg]">
-                                            <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="5" />
-                                            <circle 
-                                                cx="35" 
-                                                cy="35" 
-                                                r="28" 
-                                                fill="none" 
-                                                stroke={comparisonData.fake_analysis?.product_1.fake_prob > 40 ? '#f87171' : '#34d399'} 
-                                                strokeWidth="5" 
-                                                strokeDasharray={2 * Math.PI * 28}
-                                                strokeDashoffset={(1 - (comparisonData.fake_analysis?.product_1.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                        <span className="absolute text-[10px] font-black">{comparisonData.fake_analysis?.product_1.fake_prob}%</span>
-                                    </div>
-                                    <div className="flex-1 text-xs text-slate-400 leading-relaxed">
-                                        <p className="font-bold text-slate-300 mb-1">Fake Review Risk Level</p>
-                                        <p>Detected {comparisonData.fake_analysis?.product_1.duplicate_count || 0} duplicate review patterns and {comparisonData.fake_analysis?.product_1.spam_count || 0} short comment bursts out of {comparisonData.fake_analysis?.product_1.total_reviews || 0} total posts.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
-                                <div className="flex items-center gap-2.5 mb-4 text-emerald-400">
-                                    <ShieldAlert size={18} />
-                                    <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {p2.name.substring(0, 18)}...</h4>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="relative shrink-0 flex items-center justify-center">
-                                        <svg width="70" height="70" className="rotate-[-90deg]">
-                                            <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="5" />
-                                            <circle 
-                                                cx="35" 
-                                                cy="35" 
-                                                r="28" 
-                                                fill="none" 
-                                                stroke={comparisonData.fake_analysis?.product_2.fake_prob > 40 ? '#f87171' : '#34d399'} 
-                                                strokeWidth="5" 
-                                                strokeDasharray={2 * Math.PI * 28}
-                                                strokeDashoffset={(1 - (comparisonData.fake_analysis?.product_2.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                        <span className="absolute text-[10px] font-black">{comparisonData.fake_analysis?.product_2.fake_prob}%</span>
-                                    </div>
-                                    <div className="flex-1 text-xs text-slate-400 leading-relaxed">
-                                        <p className="font-bold text-slate-300 mb-1">Fake Review Risk Level</p>
-                                        <p>Detected {comparisonData.fake_analysis?.product_2.duplicate_count || 0} duplicate review patterns and {comparisonData.fake_analysis?.product_2.spam_count || 0} short comment bursts out of {comparisonData.fake_analysis?.product_2.total_reviews || 0} total posts.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 4. CLINICAL COMPARISON SCORECARD */}
-                    <div className="bg-slate-900/30 border border-white/5 rounded-3xl overflow-hidden backdrop-blur-md">
-                        <div className="p-5 border-b border-white/5">
-                            <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase">Comparison Scorecard</h3>
-                        </div>
-                        
-                        <div className="flex flex-col divide-y divide-white/5">
-                            {Object.keys(scorecard1).map((metric, idx) => {
-                                const val1 = scorecard1[metric];
-                                const val2 = scorecard2[metric];
-                                const isWinner1 = val1 >= val2;
-                                return (
-                                    <div key={idx} className="grid grid-cols-3 p-5 items-center gap-4">
-                                        <div className="text-xs font-bold tracking-wider text-slate-400 uppercase">{metric}</div>
-                                        
-                                        {/* Product 1 score bar */}
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden hidden md:block">
-                                                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full" style={{ width: `${val1}%` }}></div>
-                                            </div>
-                                            <span className={`text-xs font-bold ${isWinner1 ? 'text-purple-300 font-extrabold' : 'text-slate-500'}`}>
-                                                {val1}% {isWinner1 && "🏆"}
-                                            </span>
-                                        </div>
-
-                                        {/* Product 2 score bar */}
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden hidden md:block">
-                                                <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 h-full rounded-full" style={{ width: `${val2}%` }}></div>
-                                            </div>
-                                            <span className={`text-xs font-bold ${!isWinner1 ? 'text-emerald-300 font-extrabold' : 'text-slate-500'}`}>
-                                                {val2}% {!isWinner1 && "🏆"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* 5. HIGHLIGHTED INGREDIENT DIFFERENCES */}
-                    <div className="bg-slate-900/30 border border-white/5 rounded-3xl overflow-hidden backdrop-blur-md">
-                        <div className="p-5 border-b border-white/5 flex items-center gap-2">
-                            <Sparkles className="text-purple-400" size={16} />
-                            <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase">Bioactive Formula Highlights</h3>
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5">
-                            {/* Product 1 ingredients */}
-                            <div className="p-6 flex flex-col gap-4">
-                                <h4 className="text-xs font-bold text-purple-300 uppercase tracking-widest mb-1">{p1.name} Formula</h4>
-                                <div className="flex flex-col gap-3">
-                                    {getHighlightedIngredients(p1).map((ing, i) => (
-                                        <div key={i} className="p-3 bg-white/5 rounded-xl border border-white/5">
-                                            <p className="text-xs font-bold text-slate-200 mb-0.5">{ing.name}</p>
-                                            <p className="text-[10px] text-slate-400 leading-normal">{ing.role}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Product 2 ingredients */}
-                            <div className="p-6 flex flex-col gap-4">
-                                <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-widest mb-1">{p2.name} Formula</h4>
-                                <div className="flex flex-col gap-3">
-                                    {getHighlightedIngredients(p2).map((ing, i) => (
-                                        <div key={i} className="p-3 bg-white/5 rounded-xl border border-white/5">
-                                            <p className="text-xs font-bold text-slate-200 mb-0.5">{ing.name}</p>
-                                            <p className="text-[10px] text-slate-400 leading-normal">{ing.role}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 6. VERIFIED PROS & CONS */}
-                    <div className="grid md:grid-cols-2 gap-8">
-                        {/* Product 1 Pros & Cons */}
-                        <div className="bg-slate-900/30 border border-purple-500/10 rounded-3xl p-6 flex flex-col gap-4 backdrop-blur-md">
-                            <h3 className="text-xs font-bold text-purple-300 uppercase tracking-widest border-b border-white/5 pb-2">Pros &amp; Cons: {p1.name}</h3>
-                            
-                            <div className="flex flex-col gap-4">
-                                <div className="flex flex-col gap-2">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">Clinical Pros</h4>
-                                    {getProsAndCons(p1, scorecard1["Skin Compatibility"] >= scorecard2["Skin Compatibility"]).pros.map((pro, i) => (
-                                        <div key={i} className="flex gap-2 text-xs text-slate-300 items-start">
-                                            <CheckCircle2 className="text-emerald-400 mt-0.5 shrink-0" size={14} />
-                                            <span>{pro}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">Clinical Cons</h4>
-                                    {getProsAndCons(p1, scorecard1["Skin Compatibility"] >= scorecard2["Skin Compatibility"]).cons.map((con, i) => (
-                                        <div key={i} className="flex gap-2 text-xs text-slate-400 items-start">
-                                            <ShieldAlert className="text-amber-500 mt-0.5 shrink-0" size={14} />
-                                            <span>{con}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Product 2 Pros & Cons */}
-                        <div className="bg-slate-900/30 border border-emerald-500/10 rounded-3xl p-6 flex flex-col gap-4 backdrop-blur-md">
-                            <h3 className="text-xs font-bold text-emerald-300 uppercase tracking-widest border-b border-white/5 pb-2">Pros &amp; Cons: {p2.name}</h3>
-                            
-                            <div className="flex flex-col gap-4">
-                                <div className="flex flex-col gap-2">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">Clinical Pros</h4>
-                                    {getProsAndCons(p2, scorecard2["Skin Compatibility"] >= scorecard1["Skin Compatibility"]).pros.map((pro, i) => (
-                                        <div key={i} className="flex gap-2 text-xs text-slate-300 items-start">
-                                            <CheckCircle2 className="text-emerald-400 mt-0.5 shrink-0" size={14} />
-                                            <span>{pro}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wide mb-1">Clinical Cons</h4>
-                                    {getProsAndCons(p2, scorecard2["Skin Compatibility"] >= scorecard1["Skin Compatibility"]).cons.map((con, i) => (
-                                        <div key={i} className="flex gap-2 text-xs text-slate-400 items-start">
-                                            <ShieldAlert className="text-amber-500 mt-0.5 shrink-0" size={14} />
-                                            <span>{con}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <ComparisonTable 
+                        p1={p1} 
+                        p2={p2} 
+                        scorecard1={scorecard1} 
+                        scorecard2={scorecard2} 
+                        getHighlightedIngredients={getHighlightedIngredients} 
+                        getProsAndCons={getProsAndCons} 
+                    />
                 </motion.div>
             )}
 

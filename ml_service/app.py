@@ -34,19 +34,64 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Load environment variables (prefer server/.env, fallback to root .env)
+# Load environment variables (prefer server/.env, fallback to root .env, and local ml_service/.env)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', 'server', '.env'), override=True)
 
-# CORS Configuration
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    FRONTEND_URL
-]
-# Remove any empty or duplicate entries
-origins = list(set([o for o in origins if o]))
+
+# CORS & Startup Validation Configuration
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+AI_API_KEY = os.getenv("AI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GROQ_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY")
+
+validation_failed = False
+missing_vars = []
+placeholder_vars = []
+
+if not FRONTEND_URL or FRONTEND_URL.strip() == "":
+    validation_failed = True
+    missing_vars.append("FRONTEND_URL")
+
+if not AI_API_KEY or AI_API_KEY.strip() == "":
+    validation_failed = True
+    missing_vars.append("AI_API_KEY (GEMINI_API_KEY or GROQ_API_KEY)")
+
+if not SUPABASE_URL or SUPABASE_URL.strip() == "":
+    validation_failed = True
+    missing_vars.append("SUPABASE_URL / VITE_SUPABASE_URL")
+elif "placeholder.supabase.co" in SUPABASE_URL:
+    validation_failed = True
+    placeholder_vars.append("SUPABASE_URL (placeholder value detected)")
+
+if not SUPABASE_KEY or SUPABASE_KEY.strip() == "":
+    validation_failed = True
+    missing_vars.append("SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY")
+elif SUPABASE_KEY == "placeholder" or SUPABASE_KEY == "placeholder_anon_key":
+    validation_failed = True
+    placeholder_vars.append("SUPABASE_ANON_KEY (placeholder value detected)")
+
+if validation_failed:
+    logger.critical("==================================================")
+    logger.critical("  FATAL: CRITICAL ENVIRONMENT CONFIGURATION ERROR ")
+    logger.critical("==================================================")
+    for mv in missing_vars:
+        logger.critical(f"❌ Missing Variable: {mv}")
+    for pv in placeholder_vars:
+        logger.critical(f"❌ Placeholder Variable: {pv}")
+    logger.critical("==================================================")
+    logger.critical("The ML service refuses to boot with invalid or missing configurations.")
+    logger.critical("Please verify your ml_service/.env configuration.")
+    logger.critical("==================================================")
+    import sys
+    sys.exit(1)
+
+origins = ["http://localhost:3000", "http://localhost:5173"]
+if FRONTEND_URL:
+    origins.append(FRONTEND_URL)
+# Remove duplicate/empty entries
+origins = list(set([o.strip() for o in origins if o and o.strip()]))
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,13 +101,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Groq Configuration (Legacy Fallback)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+AI_API_KEY = os.getenv("AI_API_KEY")
+
+# Smart API Key resolution based on key signatures
+if not GROQ_API_KEY and AI_API_KEY:
+    if AI_API_KEY.startswith("gsk_"):
+        GROQ_API_KEY = AI_API_KEY
+        logger.info("[AI ENGINE] Resolved Groq API Key from AI_API_KEY signature.")
+
+groq_connected = False
 if GROQ_API_KEY:
     try:
         groq_client = Groq(api_key=GROQ_API_KEY)
         GROQ_MODEL = "llama-3.3-70b-versatile"
-        logger.info("[AI ENGINE] Groq client initialized successfully.")
+        logger.info("[AI ENGINE] Groq client initialized successfully. Testing connectivity...")
+        try:
+            groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=5,
+                timeout=3.0
+            )
+            groq_connected = True
+            logger.info("[AI ENGINE] Groq connectivity test passed.")
+        except Exception as conn_err:
+            logger.error(f"[AI ENGINE] Groq connectivity test failed: {conn_err}")
     except Exception as e:
         logger.error(f"[AI ENGINE] Failed to initialize Groq client: {e}")
         groq_client = None
@@ -74,11 +140,26 @@ else:
 
 # Gemini Configuration (Primary AI Engine)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY and AI_API_KEY:
+    if AI_API_KEY.startswith("AIzaSy"):
+        GEMINI_API_KEY = AI_API_KEY
+        logger.info("[AI ENGINE] Resolved Gemini API Key from AI_API_KEY signature.")
+
+gemini_connected = False
 if GEMINI_API_KEY:
     try:
         gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         GEMINI_MODEL = "gemini-2.0-flash"
-        logger.info("[AI ENGINE] Gemini client initialized successfully.")
+        logger.info("[AI ENGINE] Gemini client initialized successfully. Testing connectivity...")
+        try:
+            gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents="ping"
+            )
+            gemini_connected = True
+            logger.info("[AI ENGINE] Gemini connectivity test passed.")
+        except Exception as conn_err:
+            logger.error(f"[AI ENGINE] Gemini connectivity test failed: {conn_err}")
     except Exception as e:
         logger.error(f"[AI ENGINE] Failed to initialize Gemini client: {e}")
         gemini_client = None
@@ -89,8 +170,8 @@ else:
     logger.warning("[AI ENGINE] GEMINI_API_KEY not found. Intelligent offline fallbacks will be used.")
 
 # Supabase Credentials
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("VITE_SUPABASE_ANON_KEY", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or ""
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or ""
 
 def query_supabase(table: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -174,8 +255,8 @@ async def health():
         "status": "ok",
         "service": "ml_service",
         "database_connected": db_connected,
-        "gemini_connected": gemini_client is not None,
-        "groq_connected": groq_client is not None,
+        "gemini_connected": gemini_connected,
+        "groq_connected": groq_connected,
         "naive_bayes_cached": inference.is_trained,
         "naive_bayes_accuracy": f"{inference.model_accuracy * 100:.2f}%" if inference.is_trained else "not_trained_yet"
     }
@@ -224,7 +305,7 @@ async def predict(payload: PredictRequest):
     return {"prediction": prediction_label}
 
 @app.post("/rag_chat")
-async def rag_chat(payload: ChatRequest):
+async def rag_chat(payload: ChatRequest, request: Request):
     """
     RAG Knowledge Chatbot endpoint bridging database semantic searches and LLMs.
     Guarantees response safety with intelligent fallbacks.
@@ -233,14 +314,31 @@ async def rag_chat(payload: ChatRequest):
     if not payload.message:
         raise HTTPException(status_code=400, detail="Message is required")
 
+    # Extract user keys from request headers
+    user_gemini_key = request.headers.get("x-gemini-key")
+    user_openai_key = request.headers.get("x-openai-key")
+
+    active_gemini_client = gemini_client
+    active_gemini_model = GEMINI_MODEL
+
+    if user_gemini_key and user_gemini_key.strip():
+        try:
+            from google import genai
+            active_gemini_client = genai.Client(api_key=user_gemini_key.strip())
+            active_gemini_model = "gemini-2.0-flash"
+            logger.info("[DYNAMIC CLIENT] Dynamically initialized request-specific Gemini client.")
+        except Exception as e:
+            logger.error(f"[DYNAMIC CLIENT] Dynamic Gemini client creation failed: {e}")
+
     try:
         response_text = perform_rag_chat(
             payload.message, 
             query_supabase, 
-            gemini_client, 
+            active_gemini_client, 
             groq_client, 
-            GEMINI_MODEL, 
-            GROQ_MODEL
+            active_gemini_model, 
+            GROQ_MODEL,
+            openai_key=user_openai_key
         )
         return {
             "response": response_text,
@@ -392,14 +490,29 @@ def analyze_reviews_for_product(product: dict, selected_preferences: List[str], 
     }
 
 @app.post("/compare_analysis")
-async def compare_analysis(payload: CompareRequest):
+async def compare_analysis(payload: CompareRequest, request: Request):
     """
     Advanced microservice RAG comparative scoring and fake review burst detection.
     """
     p1 = payload.product1
     p2 = payload.product2
     preferences = payload.preferences or []
-    
+
+    # Extract keys
+    user_gemini_key = request.headers.get("x-gemini-key")
+    user_openai_key = request.headers.get("x-openai-key")
+
+    active_gemini_client = gemini_client
+    active_gemini_model = GEMINI_MODEL
+
+    if user_gemini_key and user_gemini_key.strip():
+        try:
+            from google import genai
+            active_gemini_client = genai.Client(api_key=user_gemini_key.strip())
+            active_gemini_model = "gemini-2.0-flash"
+        except Exception:
+            pass
+     
     # Parse input shapes
     if isinstance(p1, str):
         try:
@@ -435,26 +548,38 @@ async def compare_analysis(payload: CompareRequest):
     loser_score = min(avg_score_1, avg_score_2)
     
     explanation = ""
-    if gemini_client:
+
+    system_prompt = f"""You are the Lead Clinical Analyst for ReviewLens.
+    Provide a deep, customized comparative review analysis of two products in the {category} category.
+    User selected preferences: {', '.join(selected_prefs)}.
+    
+    PRODUCT 1: {p1_name} (Calculated Match: {avg_score_1}%)
+    PRODUCT 2: {p2_name} (Calculated Match: {avg_score_2}%)
+    
+    Winner is declared as: {winner_name} (Calculated Match: {winner_score}%)
+    
+    INSTRUCTIONS:
+    1. Keep the output extremely structured using markdown headers (###).
+    2. Be highly analytical, clinical, and objective. Cite the specific preference scores.
+    3. Explicitly declare why the winner fits better according to their preferences.
+    4. Keep it premium, professional, and clear."""
+
+    # Try OpenAI comparison first
+    if user_openai_key and user_openai_key.strip():
         try:
-            system_prompt = f"""You are the Lead Clinical Analyst for ReviewLens.
-            Provide a deep, customized comparative review analysis of two products in the {category} category.
-            User selected preferences: {', '.join(selected_prefs)}.
-            
-            PRODUCT 1: {p1_name} (Calculated Match: {avg_score_1}%)
-            PRODUCT 2: {p2_name} (Calculated Match: {avg_score_2}%)
-            
-            Winner is declared as: {winner_name} (Calculated Match: {winner_score}%)
-            
-            INSTRUCTIONS:
-            1. Keep the output extremely structured using markdown headers (###).
-            2. Be highly analytical, clinical, and objective. Cite the specific preference scores.
-            3. Explicitly declare why the winner fits better according to their preferences.
-            4. Keep it premium, professional, and clear."""
-            
+            from services.chatbot import execute_openai_request
+            def ask_openai():
+                return execute_openai_request(user_openai_key.strip(), system_prompt, f"Compare this product pair: {p1_name} vs {p2_name}")
+            explanation = run_with_timeout(ask_openai, 10)
+        except Exception as e:
+            logger.error(f"OpenAI comparison failed: {e}")
+
+    # Try Gemini comparison second
+    if not explanation and active_gemini_client and active_gemini_model:
+        try:
             def ask_gemini():
-                res = gemini_client.models.generate_content(
-                    model=GEMINI_MODEL,
+                res = active_gemini_client.models.generate_content(
+                    model=active_gemini_model,
                     contents=f"Compare this product pair: {p1_name} vs {p2_name}",
                     config={'system_instruction': system_prompt}
                 )

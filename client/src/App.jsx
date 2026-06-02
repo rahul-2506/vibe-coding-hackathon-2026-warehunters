@@ -25,6 +25,7 @@ import PriceTracker from './pages/PriceTracker';
 import CartPage from './pages/CartPage';
 import { Bot } from 'lucide-react';
 import HackathonDemoPanel from './components/HackathonDemoPanel';
+import { supabaseConfigured } from './config/supabaseClient';
 
 /* ─────────────────────────────────────────────
    AppShell — shown only for authenticated routes
@@ -32,8 +33,31 @@ import HackathonDemoPanel from './components/HackathonDemoPanel';
 const AppShell = ({ theme, toggleTheme, user, signOut, children }) => (
   <div className="app-container">
     <Sidebar theme={theme} toggleTheme={toggleTheme} user={user} onLogout={signOut} />
-    <main className="content-wrapper">
-      {children}
+    <main className="content-wrapper" style={{ display: 'flex', flexDirection: 'column' }}>
+      {!supabaseConfigured && (
+        <div style={{
+          background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
+          color: '#000',
+          padding: '0.6rem 1.25rem',
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          textAlign: 'center',
+          borderRadius: 'var(--r-sm)',
+          margin: '1rem 1rem 0 1rem',
+          boxShadow: '0 4px 12px rgba(217, 119, 6, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          zIndex: 40
+        }}>
+          <span>⚠️</span>
+          <span>Database connection is offline. Running in secure local offline sandbox. Some data may be mock.</span>
+        </div>
+      )}
+      <div style={{ flex: 1 }}>
+        {children}
+      </div>
     </main>
     <ComparisonBar />
     <Link to="/chatbot" className="floating-bot-icon" title="Open AI Chat">

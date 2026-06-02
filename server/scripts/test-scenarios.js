@@ -38,7 +38,7 @@ async function runTests() {
         console.warn('⚠️ Authentication setup error:', authErr.message);
     }
 
-    const testProduct = 'The Derma Co 2% Salicylic Acid Cleanser';
+    const testProduct = `The Derma Co 2% Salicylic Acid Cleanser (Test ${Math.floor(Math.random() * 1000000)})`;
 
     // Ensure mock product exists in the Supabase database
     try {
@@ -62,8 +62,7 @@ async function runTests() {
                     name: testProduct,
                     price: 299.00,
                     category: 'Skincare',
-                    description: 'Dermatologically formulated Salicylic Acid cleanser for oily and acne-prone skin.',
-                    explanation: 'Deep keratolytic sebum control agent.'
+                    description: 'Dermatologically formulated Salicylic Acid cleanser for oily and acne-prone skin.'
                 })
                 .select('id');
             

@@ -212,12 +212,34 @@ export function buildMegaCatalog() {
                 'highquality'
             ];
             
+            // Determine subcategory if category is 'Skincare & Beauty'
+            let subcategory = null;
+            if (category === 'Skincare & Beauty') {
+                const nounLower = noun.toLowerCase();
+                if (nounLower.includes('wash') || nounLower.includes('cleanser') || nounLower.includes('cleansing') || nounLower.includes('micellar')) {
+                    subcategory = 'Face Wash';
+                } else if (nounLower.includes('sunscreen') || nounLower.includes('spf') || nounLower.includes('sun block')) {
+                    subcategory = 'Sunscreen';
+                } else if (nounLower.includes('moisturizer') || nounLower.includes('cream') || nounLower.includes('butter') || nounLower.includes('lotion')) {
+                    subcategory = 'Moisturizer';
+                } else if (nounLower.includes('serum') || nounLower.includes('gel') || nounLower.includes('mist')) {
+                    subcategory = 'Serum';
+                } else if (nounLower.includes('toner')) {
+                    subcategory = 'Toner';
+                } else if (nounLower.includes('mask') || nounLower.includes('scrub') || nounLower.includes('peel')) {
+                    subcategory = 'Masks & Scrubs';
+                } else {
+                    subcategory = 'Others';
+                }
+            }
+            
             products.push({
                 id,
                 title,
                 name: title, // Map to name for frontend component matching
                 description,
                 category,
+                subcategory,
                 price,
                 rating,
                 brand,
@@ -279,6 +301,7 @@ export const productService = {
                 try {
                     for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
                         const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => ({
+                            name: p.title,
                             title: p.title,
                             description: p.description,
                             category: p.category,
@@ -307,6 +330,7 @@ export const productService = {
                     
                     for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
                         const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => ({
+                            name: p.title,
                             title: p.title,
                             description: p.description,
                             category: p.category,
@@ -346,12 +370,35 @@ export const productService = {
                     const reviewCount = Math.floor((r.id * 17) % 180) + 12;
                     const trustScore = r.trust_score || (78 + ((r.id * 7) % 19));
                     
+                    // Determine subcategory if category is 'Skincare & Beauty' or 'Skincare'
+                    let subcategory = r.subcategory || null;
+                    const catLower = (r.category || '').toLowerCase();
+                    if (!subcategory && (catLower === 'skincare & beauty' || catLower === 'skincare')) {
+                        const nameLower = (r.title || r.name || '').toLowerCase();
+                        if (nameLower.includes('wash') || nameLower.includes('cleanser') || nameLower.includes('cleansing') || nameLower.includes('micellar')) {
+                            subcategory = 'Face Wash';
+                        } else if (nameLower.includes('sunscreen') || nameLower.includes('spf') || nameLower.includes('sun block') || nameLower.includes('sun protection')) {
+                            subcategory = 'Sunscreen';
+                        } else if (nameLower.includes('moisturizer') || nameLower.includes('cream') || nameLower.includes('butter') || nameLower.includes('lotion')) {
+                            subcategory = 'Moisturizer';
+                        } else if (nameLower.includes('serum') || nameLower.includes('gel') || nameLower.includes('mist')) {
+                            subcategory = 'Serum';
+                        } else if (nameLower.includes('toner')) {
+                            subcategory = 'Toner';
+                        } else if (nameLower.includes('mask') || nameLower.includes('scrub') || nameLower.includes('peel')) {
+                            subcategory = 'Masks & Scrubs';
+                        } else {
+                            subcategory = 'Others';
+                        }
+                    }
+                    
                     return {
                         id: Number(r.id),
                         title: r.title,
                         name: r.title, // frontend compatibility
                         description: r.description,
                         category: r.category,
+                        subcategory: subcategory,
                         price: Number(r.price),
                         rating: Number(r.rating),
                         brand: r.brand,
@@ -399,7 +446,7 @@ export const productService = {
     /**
      * Upgraded High-Relevance Weighted Multi-Term Search Engine
      */
-    async searchProducts(query, category, sort) {
+    async searchProducts(query, category, sort, subcategory) {
         let products = await this.getAllProducts();
         
         // 1. Text Search matching with weighted relevance scoring
@@ -506,11 +553,17 @@ export const productService = {
                 if (category && category !== 'All' && category !== '') {
                     products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
                 }
+                if (subcategory && subcategory !== 'All' && subcategory !== '') {
+                    products = products.filter(p => p.subcategory && p.subcategory.toLowerCase() === subcategory.toLowerCase());
+                }
             }
         } else {
             // No search query: standard category filter and sorting
             if (category && category !== 'All' && category !== '') {
                 products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
+            }
+            if (subcategory && subcategory !== 'All' && subcategory !== '') {
+                products = products.filter(p => p.subcategory && p.subcategory.toLowerCase() === subcategory.toLowerCase());
             }
 
             if (sort) {
@@ -532,8 +585,8 @@ export const productService = {
     /**
      * Supports paginated product queries.
      */
-    async getPaginatedProducts({ page = 1, limit = 24, category, searchQuery, sort }) {
-        let products = await this.searchProducts(searchQuery, category, sort);
+    async getPaginatedProducts({ page = 1, limit = 24, category, subcategory, searchQuery, sort }) {
+        let products = await this.searchProducts(searchQuery, category, sort, subcategory);
         
         const startIndex = (page - 1) * limit;
         const endIndex = page * limit;
