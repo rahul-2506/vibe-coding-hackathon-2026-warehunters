@@ -684,6 +684,84 @@ const CompareProducts = () => {
                         handleSaveComparison={handleSaveComparison} 
                     />
 
+                    {/* Skincare Battle Mode Cards */}
+                    <div className="max-w-5xl mx-auto w-full">
+                        <div className="flex items-center gap-2 mb-6">
+                            <GitCompare className="text-purple-400 animate-pulse" size={20} />
+                            <h2 className="text-xl font-extrabold text-white tracking-tight">Dermatological Battle Cards</h2>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+                            {/* Oily Skin Card */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-teal-400 bg-teal-500/10 rounded-bl-xl uppercase tracking-wider">Skin Type</div>
+                                <div>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Oily Skin Winner</h4>
+                                    <h3 className="text-sm font-extrabold text-white leading-snug">
+                                        {(comparisonData.scores?.product_1?.['Oily Skin'] || 0) >= (comparisonData.scores?.product_2?.['Oily Skin'] || 0) ? (p1.name || p1.title) : (p2.name || p2.title)}
+                                    </h3>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <span className="text-[10px] text-slate-500 font-semibold">Match Rating</span>
+                                    <span className="text-xs font-black text-teal-400">
+                                        {Math.max(comparisonData.scores?.product_1?.['Oily Skin'] || 0, comparisonData.scores?.product_2?.['Oily Skin'] || 0)}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Dry Skin Card */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-sky-400 bg-sky-500/10 rounded-bl-xl uppercase tracking-wider">Hydration</div>
+                                <div>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Dry Skin Winner</h4>
+                                    <h3 className="text-sm font-extrabold text-white leading-snug">
+                                        {(comparisonData.scores?.product_1?.['Dry Skin'] || 0) >= (comparisonData.scores?.product_2?.['Dry Skin'] || 0) ? (p1.name || p1.title) : (p2.name || p2.title)}
+                                    </h3>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <span className="text-[10px] text-slate-500 font-semibold">Moisture Index</span>
+                                    <span className="text-xs font-black text-sky-400">
+                                        {Math.max(comparisonData.scores?.product_1?.['Dry Skin'] || 0, comparisonData.scores?.product_2?.['Dry Skin'] || 0)}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Ingredients Card */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-purple-400 bg-purple-500/10 rounded-bl-xl uppercase tracking-wider">Formula</div>
+                                <div>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Ingredients Winner</h4>
+                                    <h3 className="text-sm font-extrabold text-white leading-snug">
+                                        {(comparisonData.scores?.product_1?.['Ingredients'] || 0) >= (comparisonData.scores?.product_2?.['Ingredients'] || 0) ? (p1.name || p1.title) : (p2.name || p2.title)}
+                                    </h3>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <span className="text-[10px] text-slate-500 font-semibold">Active Potency</span>
+                                    <span className="text-xs font-black text-purple-400">
+                                        {Math.max(comparisonData.scores?.product_1?.['Ingredients'] || 0, comparisonData.scores?.product_2?.['Ingredients'] || 0)}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Value Card */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-amber-400 bg-amber-500/10 rounded-bl-xl uppercase tracking-wider">Valuation</div>
+                                <div>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Value Champion</h4>
+                                    <h3 className="text-sm font-extrabold text-white leading-snug">
+                                        {(comparisonData.scores?.product_1?.['Value'] || 0) >= (comparisonData.scores?.product_2?.['Value'] || 0) ? (p1.name || p1.title) : (p2.name || p2.title)}
+                                    </h3>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <span className="text-[10px] text-slate-500 font-semibold">Cost-to-Benefit</span>
+                                    <span className="text-xs font-black text-amber-400">
+                                        {Math.max(comparisonData.scores?.product_1?.['Value'] || 0, comparisonData.scores?.product_2?.['Value'] || 0)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <ComparisonCharts 
                         p1={p1} 
                         p2={p2} 

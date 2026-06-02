@@ -1,0 +1,504 @@
+.scanner-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    color: var(--text-main, #f8fafc);
+}
+
+.scanner-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.scanner-header h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent-color, #f43f5e) 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.scanner-header p {
+    color: var(--text-muted, #94a3b8);
+    font-size: 1rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Glassmorphic Upload Section */
+.upload-section {
+    background: var(--bg-card, rgba(30, 41, 59, 0.45));
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: 16px;
+    padding: 2.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.dropzone {
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.2);
+}
+
+.dropzone:hover {
+    border-color: var(--accent-color, #f43f5e);
+    background: rgba(244, 63, 94, 0.03);
+}
+
+.dropzone-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.upload-icon {
+    color: var(--accent-color, #f43f5e);
+    margin-bottom: 0.5rem;
+}
+
+.dropzone-placeholder p {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.dropzone-placeholder p span {
+    color: var(--accent-color, #f43f5e);
+    text-decoration: underline;
+}
+
+.dropzone-placeholder small {
+    color: var(--text-muted, #64748b);
+}
+
+.file-input-hidden {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Image Preview & Scanning Laser Line */
+.preview-container {
+    position: relative;
+    max-height: 350px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    background: #0f172a;
+}
+
+.label-preview {
+    max-height: 350px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+@keyframes laser-scan {
+    0% { top: 0%; opacity: 1; }
+    50% { top: 100%; opacity: 1; }
+    100% { top: 0%; opacity: 0.3; }
+}
+
+.scan-line-animation {
+    position: absolute;
+    height: 4px;
+    width: 100%;
+    background: linear-gradient(to right, transparent, #10b981, transparent);
+    box-shadow: 0 0 15px #10b981, 0 0 5px #10b981;
+    top: 0;
+    left: 0;
+    animation: laser-scan 2.5s ease-in-out infinite;
+    z-index: 10;
+}
+
+.upload-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+/* Buttons */
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-color, #f43f5e) 0%, #e11d48 100%);
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(244, 63, 94, 0.3);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main, #f8fafc);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Report Layout */
+.report-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+@media (min-width: 900px) {
+    .report-layout {
+        grid-template-columns: 350px 1fr;
+    }
+}
+
+.report-summary {
+    background: var(--bg-card, rgba(30, 41, 59, 0.45));
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: 16px;
+    padding: 2rem;
+    height: fit-content;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.score-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+}
+
+.circular-meter {
+    position: relative;
+    width: 140px;
+    height: 140px;
+}
+
+.circular-chart {
+    display: block;
+    margin: 10px auto;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.05);
+    stroke-width: 2.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 2.8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 1s ease-in-out;
+}
+
+.score-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2.25rem;
+    font-weight: 800;
+}
+
+.score-meta h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+
+.score-meta p {
+    font-size: 0.85rem;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.4;
+}
+
+.divider {
+    border: 0;
+    height: 1px;
+    background: var(--border-color, rgba(255, 255, 255, 0.08));
+    margin: 1.5rem 0;
+}
+
+/* Risk bar styling */
+.risk-meters h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+}
+
+.risk-bar-container {
+    margin-bottom: 1.25rem;
+}
+
+.risk-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+
+.risk-bar-bg {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.risk-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease-in-out;
+}
+
+/* Report details cards */
+.report-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.detail-card {
+    background: var(--bg-card, rgba(30, 41, 59, 0.45));
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.75rem;
+}
+
+.card-header h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.ingredients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ingredient-item {
+    background: rgba(239, 68, 68, 0.03);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    padding: 1rem;
+    border-radius: 10px;
+}
+
+.ing-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.ing-title strong {
+    font-size: 0.95rem;
+    color: #ef4444;
+}
+
+.danger-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.ing-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.4;
+}
+
+/* Benefits list style */
+.benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.benefits-list li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    line-height: 1.4;
+    font-size: 0.95rem;
+}
+
+.leaf-bullet {
+    color: #10b981;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+/* Matching inventory alternative cards */
+.matching-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 600px) {
+    .matching-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.matching-card {
+    background: rgba(15, 23, 42, 0.2);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.matching-card:hover {
+    border-color: var(--accent-color, #f43f5e);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.1);
+}
+
+.match-thumb {
+    font-size: 2rem;
+    background: rgba(255, 255, 255, 0.03);
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.match-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.match-info h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-price {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent-color, #f43f5e);
+}
+
+.match-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 0.15rem;
+}
+
+.arrow-icon {
+    color: var(--text-muted, #475569);
+    transition: transform 0.2s ease;
+}
+
+.matching-card:hover .arrow-icon {
+    transform: translateX(3px);
+    color: var(--accent-color, #f43f5e);
+}
+
+.empty-message {
+    color: var(--text-muted, #64748b);
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+.scan-controls-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+/* Animations */
+.animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+}

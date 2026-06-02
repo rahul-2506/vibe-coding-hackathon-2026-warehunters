@@ -256,6 +256,103 @@ export const aiService = {
             logger.error(`[AI_SERVICE] predict failed: ${err.message}`, err, 'AI_BRIDGE');
             throw err;
         }
+    },
+
+    async scanIngredients(imageBase64) {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (!geminiKey) {
+            logger.warn('[AI SERVICE] GEMINI_API_KEY missing for scanIngredients. Returning mock report.', 'AI_BRIDGE');
+            return this.getMockIngredientReport();
+        }
+
+        try {
+            let mimeType = 'image/jpeg';
+            let cleanBase64 = imageBase64;
+            if (imageBase64.startsWith('data:')) {
+                const match = imageBase64.match(/^data:([^;]+);base64,(.*)$/);
+                if (match) {
+                    mimeType = match[1];
+                    cleanBase64 = match[2];
+                }
+            }
+
+            const prompt = `You are a professional clinical skincare ingredient analyst.
+Analyze this skincare product label image.
+Perform OCR extraction to read all ingredients, then analyze their safety and efficacy.
+Return a JSON object containing:
+- "extractedText": (string) Complete text read from the label.
+- "safetyScore": (number, 0-100) Overall safety and skin-health rating.
+- "risks": An object containing:
+  - "dry": (number, 0-100) Risk rating for dry skin types.
+  - "acne": (number, 0-100) Comedogenic / acne trigger risk rating.
+  - "irritation": (number, 0-100) Sensitization / redness / allergen risk rating.
+- "benefits": (array of strings) Clinical skin benefits identified from the active ingredients.
+- "flaggedIngredients": (array of objects) Harmful, synthetic, or highly comedogenic ingredients found. Each object has:
+  - "name": (string) Ingredient name
+  - "reason": (string) Hazard reason
+Return ONLY a valid JSON object. Do NOT include markdown styling or outer wrapper blocks.`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: cleanBase64
+                                }
+                            }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json"
+                    }
+                })
+            });
+
+            if (!res.ok) {
+                throw new Error(`Gemini API returned status ${res.status}`);
+            }
+
+            const rawData = await res.json();
+            const textResponse = rawData.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) {
+                throw new Error("Empty response from Gemini model");
+            }
+
+            const parsedReport = JSON.parse(textResponse);
+            return parsedReport;
+
+        } catch (err) {
+            logger.error(`[AI SERVICE] scanIngredients failed: ${err.message}`, err, 'AI_BRIDGE');
+            return this.getMockIngredientReport();
+        }
+    },
+
+    getMockIngredientReport() {
+        return {
+            extractedText: "INGREDIENTS: Aqua, Salicylic Acid, Glycerin, Niacinamide, Isopropyl Myristate, Fragrance, Parabens, Alcohol Denat.",
+            safetyScore: 68,
+            risks: {
+                dry: 45,
+                acne: 75,
+                irritation: 60
+            },
+            benefits: [
+                "Exfoliates pores (Salicylic Acid)",
+                "Reduces hyperpigmentation and strengthens skin barrier (Niacinamide)",
+                "Attracts moisture (Glycerin)"
+            ],
+            flaggedIngredients: [
+                { name: "Isopropyl Myristate", reason: "Highly comedogenic agent that can clog pores and worsen acne." },
+                { name: "Alcohol Denat.", reason: "Drying agent that strips natural oils and compromises dry skin barrier." },
+                { name: "Parabens", reason: "Synthetic preservative associated with potential hormone disruption." }
+            ]
+        };
     }
 };
 

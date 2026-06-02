@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Bot, Send, User, Sparkles, Mic, MicOff,
     Search, GitCompare, Leaf, Calendar,
-    Star, Shield, ChevronRight, Sparkle, RefreshCw, Eye, HelpCircle, Settings
+    Star, Shield, ChevronRight, Sparkle, RefreshCw, Eye, HelpCircle, Settings, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE_URL } from '../config/api';
@@ -461,13 +461,42 @@ const Chatbot = () => {
         setShowSettings(false);
     };
 
-    const sendMessage = useCallback(async (messageText) => {
-        const trimmed = (messageText || input).trim();
-        if (!trimmed || loading) return;
+    const abortControllerRef = useRef(null);
+    const [lastUserMessage, setLastUserMessage] = useState('');
 
+    const stopGeneration = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            setLoading(false);
+            setMessages(prev => {
+                const updated = [...prev];
+                if (updated.length > 0 && updated[updated.length - 1].role === 'ai') {
+                    updated[updated.length - 1] = {
+                        ...updated[updated.length - 1],
+                        text: updated[updated.length - 1].text + '\n\n*🛑 Generation stopped by user.*',
+                        followUpQuestions: ['Retry 🔄', 'Start Skincare Discovery Flow 🚀']
+                    };
+                }
+                return updated;
+            });
+        }
+    };
+
+    const sendMessage = useCallback(async (messageText) => {
+        let trimmed = (messageText || input).trim();
+        if (trimmed === 'Retry 🔄' || trimmed === 'Try again') {
+            trimmed = lastUserMessage;
+        }
+        if (!trimmed) return;
+        if (loading) return;
+
+        setLastUserMessage(trimmed);
         setMessages(prev => [...prev, { role: 'user', text: trimmed, type: 'user', data: null, followUpQuestions: [] }]);
         setInput('');
         setLoading(true);
+
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -491,7 +520,17 @@ const Chatbot = () => {
             const clientConcerns = JSON.parse(localStorage.getItem('profile_concerns') || '[]');
             const clientBudget = Number(localStorage.getItem('profile_budget')) || null;
 
-            const res = await fetch(`${API_BASE_URL}/api/ai/chat`, {
+            // Add initial empty AI bubble
+            const initialAiMessage = {
+                role: 'ai',
+                text: '',
+                type: 'text',
+                data: null,
+                followUpQuestions: [],
+            };
+            setMessages(prev => [...prev, initialAiMessage]);
+
+            const res = await fetch(`${API_BASE_URL}/api/ai/chat/stream`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ 
@@ -502,65 +541,71 @@ const Chatbot = () => {
                         budget: clientBudget
                     }
                 }),
+                signal: abortController.signal
             });
 
             if (!res.ok) throw new Error(`API returned ${res.status}`);
-            const json = await res.json();
 
-            // The VChat backend returns { success: true, data: { response, type, data, followUpQuestions, ... } }
-            const responsePayload = json.data || json;
-            const fullResponseText = responsePayload.response || responsePayload.reply || '🤖 Processing completed.';
-            
-            // Progressive Character-by-Character Streaming Simulation (WOW Factor!)
-            let currentLength = 0;
-            const step = 8; // stream speed multiplier
-            const intervalTime = 12; // ms delay
-            
-            // Add initial empty AI bubble (hide follow-up buttons during streaming)
-            const initialAiMessage = {
-                role: 'ai',
-                text: '',
-                type: responsePayload.type || 'text',
-                data: responsePayload.data || null,
-                followUpQuestions: [],
-            };
-            
-            setMessages(prev => [...prev, initialAiMessage]);
-            updateSessionTags(responsePayload);
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let done = false;
+            let fullText = '';
+            let buffer = '';
 
-            const timer = setInterval(() => {
-                currentLength += step;
-                if (currentLength >= fullResponseText.length) {
-                    clearInterval(timer);
-                    // Commit final completed text and reveal follow-up chips
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        if (updated.length > 0) {
-                            updated[updated.length - 1] = {
-                                ...updated[updated.length - 1],
-                                text: fullResponseText,
-                                followUpQuestions: responsePayload.followUpQuestions || [],
-                            };
+            while (!done) {
+                const { value, done: doneReading } = await reader.read();
+                done = doneReading;
+                if (value) {
+                    buffer += decoder.decode(value, { stream: !done });
+                    const lines = buffer.split('\n');
+                    buffer = done ? '' : (lines.pop() || '');
+
+                    for (const line of lines) {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.startsWith('data: ')) {
+                            try {
+                                const dataStr = trimmedLine.slice(6);
+                                if (dataStr === '[DONE]') continue;
+                                const parsed = JSON.parse(dataStr);
+                                if (parsed.text) {
+                                    fullText += parsed.text;
+                                    setMessages(prev => {
+                                        const updated = [...prev];
+                                        if (updated.length > 0) {
+                                            updated[updated.length - 1] = {
+                                                ...updated[updated.length - 1],
+                                                text: fullText
+                                            };
+                                        }
+                                        return updated;
+                                    });
+                                }
+                            } catch (e) {
+                                // partial line / JSON parse error
+                            }
                         }
-                        return updated;
-                    });
-                    setLoading(false);
-                    setTimeout(() => inputRef.current?.focus(), 100);
-                } else {
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        if (updated.length > 0) {
-                            updated[updated.length - 1] = {
-                                ...updated[updated.length - 1],
-                                text: fullResponseText.substring(0, currentLength),
-                            };
-                        }
-                        return updated;
-                    });
+                    }
                 }
-            }, intervalTime);
+            }
+
+            // Once finished, set standard suggestions
+            setMessages(prev => {
+                const updated = [...prev];
+                if (updated.length > 0) {
+                    updated[updated.length - 1] = {
+                        ...updated[updated.length - 1],
+                        followUpQuestions: ['Start Skincare Discovery Flow 🚀', 'Build me a routine 🌅', 'Compare alternative brands ⚖️']
+                    };
+                }
+                return updated;
+            });
+            setLoading(false);
+            setTimeout(() => inputRef.current?.focus(), 100);
 
         } catch (err) {
+            if (err.name === 'AbortError') {
+                return;
+            }
             console.error('[VChat] Error:', err);
             setMessages(prev => [...prev, {
                 role: 'ai',
@@ -572,7 +617,7 @@ const Chatbot = () => {
             setLoading(false);
             setTimeout(() => inputRef.current?.focus(), 100);
         }
-    }, [input, loading, activeProduct]);
+    }, [input, loading, activeProduct, lastUserMessage]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -701,7 +746,7 @@ const Chatbot = () => {
                     ))}
 
                     {/* Typing status indicator (Phase 10) */}
-                    {loading && (
+                    {loading && messages.length > 0 && messages[messages.length - 1].role === 'ai' && !messages[messages.length - 1].text && (
                         <div className="vchat-msg-row ai">
                             <div className="vchat-avatar ai-avatar"><Bot size={16} /></div>
                             <div className="vchat-bubble">
@@ -718,6 +763,41 @@ const Chatbot = () => {
 
                 {/* Input Area */}
                 <div className="vchat-input-zone">
+                    {loading && (
+                        <div className="vchat-stop-container" style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                            <button
+                                type="button"
+                                className="vchat-stop-btn"
+                                onClick={stopGeneration}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '20px',
+                                    border: '1px solid rgba(244, 63, 94, 0.4)',
+                                    background: 'rgba(15, 23, 42, 0.8)',
+                                    color: '#f43f5e',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s ease',
+                                    backdropFilter: 'blur(8px)',
+                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(244, 63, 94, 0.15)';
+                                    e.currentTarget.style.border = '1px solid #f43f5e';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(15, 23, 42, 0.8)';
+                                    e.currentTarget.style.border = '1px solid rgba(244, 63, 94, 0.4)';
+                                }}
+                            >
+                                <Square size={12} fill="#f43f5e" /> Stop Generation
+                            </button>
+                        </div>
+                    )}
                     {/* Initial suggestions */}
                     {showSuggestions && (
                         <div className="vchat-suggestions">

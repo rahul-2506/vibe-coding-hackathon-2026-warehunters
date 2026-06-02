@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Home, Package, MessageSquare, LogIn, LogOut, Sun, Moon, User, Bot, Bell, Terminal } from 'lucide-react';
+import { Home, Package, MessageSquare, LogIn, LogOut, Sun, Moon, User, Bot, Bell, Terminal, Leaf } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 const Sidebar = ({ theme, toggleTheme, user, onLogout }) => {
@@ -21,6 +21,10 @@ const Sidebar = ({ theme, toggleTheme, user, onLogout }) => {
                 <NavLink to="/products" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     <Package size={20} />
                     <span>Products</span>
+                </NavLink>
+                <NavLink to="/scanner" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    <Leaf size={20} />
+                    <span>Scanner</span>
                 </NavLink>
                 <NavLink to="/cart" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center', width: '100%', position: 'relative' }}>
                     <Bell size={20} />

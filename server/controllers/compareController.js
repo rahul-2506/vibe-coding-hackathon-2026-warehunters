@@ -1,5 +1,5 @@
 import { supabase } from '../db.js';
-import { aiService } from '../services/aiService.js';
+import { aiGateway } from '../services/gateway/aiGateway.js';
 import { logger } from '../utils/logger.js';
 import { response } from '../utils/response.js';
 import { productService } from '../services/productService.js';
@@ -28,9 +28,9 @@ export const compareController = {
                 return response.error(res, 'Failed to fetch compared products from inventory.', null, 404);
             }
 
-            // 2. Call the FastAPI AI analysis engine
-            logger.info('[COMPARISON CONTROLLER] Dispatching products and preferences to FastAPI AI service...', 'COMPARE');
-            const aiResult = await aiService.compareProducts(p1, p2, preferences);
+            // 2. Call the centralized AI Gateway comparison service
+            logger.info('[COMPARISON CONTROLLER] Dispatching products to AI Gateway comparison service...', 'COMPARE');
+            const aiResult = await aiGateway.comparison.compareProducts(product1Id, product2Id, preferences);
 
             // 3. Write record into public.comparison_history table (non-blocking)
             try {

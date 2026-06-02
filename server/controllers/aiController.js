@@ -54,5 +54,18 @@ export const aiController = {
         } catch (err) {
             next(err);
         }
+    },
+
+    async scanIngredients(req, res, next) {
+        try {
+            const { image } = req.body;
+            if (!image) {
+                return response.error(res, 'Image data (base64 string) is required', null, 400);
+            }
+            const data = await aiService.scanIngredients(image);
+            return response.success(res, data);
+        } catch (err) {
+            next(err);
+        }
     }
 };

@@ -23,36 +23,45 @@ export const envValidator = {
             errors.push('JWT_SECRET cannot be a placeholder value.');
         }
 
-        // 3. Validate SUPABASE_URL (accepts VITE_SUPABASE_URL or SUPABASE_URL)
+        // 3. Validate SUPABASE_URL
         const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
         if (!supabaseUrl) {
-            missing.push('SUPABASE_URL / VITE_SUPABASE_URL');
+            missing.push('SUPABASE_URL');
         } else if (supabaseUrl.includes('placeholder.supabase.co')) {
             errors.push('SUPABASE_URL cannot be a placeholder value.');
         }
 
-        // 4. Validate SUPABASE_KEY (accepts SUPABASE_KEY or VITE_SUPABASE_ANON_KEY)
-        const supabaseKey = process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-        if (!supabaseKey) {
-            missing.push('SUPABASE_KEY / VITE_SUPABASE_ANON_KEY');
-        } else if (supabaseKey === 'placeholder' || supabaseKey === 'placeholder_anon_key') {
-            errors.push('SUPABASE_KEY cannot be a placeholder value.');
+        // 4. Validate SUPABASE_ANON_KEY
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseAnonKey) {
+            missing.push('SUPABASE_ANON_KEY');
+        } else if (supabaseAnonKey === 'placeholder' || supabaseAnonKey === 'placeholder_anon_key') {
+            errors.push('SUPABASE_ANON_KEY cannot be a placeholder value.');
         }
 
-        // 5. Validate AI_API_KEY (accepts GEMINI_API_KEY or GROQ_API_KEY or AI_API_KEY)
-        const aiApiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY;
-        if (!aiApiKey) {
-            missing.push('AI_API_KEY (GEMINI_API_KEY or GROQ_API_KEY)');
+        // 5. Validate SUPABASE_SERVICE_ROLE_KEY
+        const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!supabaseServiceRoleKey) {
+            // Optional warning, or log message, but since it is requested in list, let's validate it
+            logger.warn('SUPABASE_SERVICE_ROLE_KEY is not defined in environment. Backend will operate in standard anon user scope.', 'ENV_VALIDATION');
         }
 
-        // 6. Validate FRONTEND_URL
+        // 6. Validate AI API Keys (Must have at least one valid key to function, let's ensure we check them)
+        const geminiKey = process.env.GEMINI_API_KEY;
+        const groqKey = process.env.GROQ_API_KEY;
+        const openaiKey = process.env.OPENAI_API_KEY;
+
+        if (!geminiKey && !groqKey && !openaiKey) {
+            missing.push('GEMINI_API_KEY / GROQ_API_KEY / OPENAI_API_KEY (At least one AI Engine key must be active)');
+        }
+
+        // 7. Validate FRONTEND_URL
         const frontendUrl = process.env.FRONTEND_URL;
         if (!frontendUrl) {
             missing.push('FRONTEND_URL');
         } else if (frontendUrl.includes('placeholder') || frontendUrl === '') {
             errors.push('FRONTEND_URL cannot be a placeholder value.');
         }
-
 
         // Halt startup immediately on failures
         if (missing.length > 0 || errors.length > 0) {

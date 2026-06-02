@@ -1,4 +1,4 @@
-import { recommendationService } from '../services/recommendationService.js';
+import { aiGateway } from '../services/gateway/aiGateway.js';
 import { response } from '../utils/response.js';
 
 export const recommendController = {
@@ -13,7 +13,7 @@ export const recommendController = {
             }
 
             const paramId = isNaN(productId) ? 'undefined' : productId;
-            const recommendations = await recommendationService.getRecommendations(paramId);
+            const recommendations = await aiGateway.recommendations.getRecommendations(paramId);
             return response.success(res, recommendations);
         } catch (err) {
             if (err.message === 'Target product not found.') {
@@ -30,7 +30,7 @@ export const recommendController = {
                 return response.error(res, 'Prompt is required', null, 400);
             }
 
-            const recommendations = await recommendationService.getAIRecommendations(prompt);
+            const recommendations = await aiGateway.recommendations.getAIRecommendations(prompt);
             return response.success(res, {
                 success: true,
                 data: recommendations,

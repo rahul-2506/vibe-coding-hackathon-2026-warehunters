@@ -23,3 +23,8 @@ ml_service/models/__pycache__/
 .idea/
 *.log
 *.sqlite
+coverage/
+.nyc_output/
+.pytest_cache/
+.coverage
+htmlcov/

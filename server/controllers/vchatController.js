@@ -8,6 +8,7 @@
  */
 
 import { vchatOrchestrate } from '../services/vchat/agent.js';
+import { aiGateway } from '../services/gateway/aiGateway.js';
 import { response } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
 
@@ -56,6 +57,37 @@ export const vchatController = {
                 followUpQuestions: [],
                 timestamp: new Date().toISOString(),
             });
+        }
+    },
+
+    async stream(req, res, next) {
+        const { message, sessionContext } = req.body;
+
+        if (!message || typeof message !== 'string' || message.trim().length === 0) {
+            return response.error(res, 'Message is required and must be a non-empty string.', null, 400);
+        }
+
+        // Set SSE Headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const userId = req.user?.id || 'anonymous';
+        const abortController = new AbortController();
+
+        req.on('close', () => {
+            logger.info(`[VCHAT STREAM] Connection closed by user=${userId}. Aborting generation stream.`, 'VCHAT');
+            abortController.abort();
+        });
+
+        try {
+            logger.info(`[VCHAT STREAM] Initializing stream query for user=${userId}: "${message.substring(0, 50)}"`, 'VCHAT');
+            await aiGateway.chat.streamChat(message, { userId, sessionContext }, res, abortController.signal);
+        } catch (err) {
+            logger.error(`[VCHAT STREAM FATAL] Generation stream aborted or failed: ${err.message}`, err, 'VCHAT');
+            res.write(`data: ${JSON.stringify({ text: `\n\n⚠️ **Streaming Interrupted:** ${err.message}` })}\n\n`);
+            res.write('event: end\ndata: [DONE]\n\n');
+            res.end();
         }
     }
 };

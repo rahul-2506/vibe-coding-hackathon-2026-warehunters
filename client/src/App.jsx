@@ -23,6 +23,7 @@ import RouteGuard from './components/RouteGuard.jsx';
 import RobotAuthForm from './components/RobotAuthForm';
 import PriceTracker from './pages/PriceTracker';
 import CartPage from './pages/CartPage';
+import IngredientScanner from './pages/IngredientScanner';
 import { Bot } from 'lucide-react';
 import HackathonDemoPanel from './components/HackathonDemoPanel';
 import { supabaseConfigured } from './config/supabaseClient';
@@ -117,6 +118,7 @@ function App() {
                     <Route path="/chatbot"     element={<RouteGuard><Chatbot /></RouteGuard>} />
                     <Route path="/product/:id" element={<RouteGuard><ProductDetails /></RouteGuard>} />
                     <Route path="/cheap-buy"   element={<RouteGuard><PriceTracker /></RouteGuard>} />
+                    <Route path="/scanner"     element={<RouteGuard><IngredientScanner /></RouteGuard>} />
                     <Route path="/cart"        element={<RouteGuard><CartPage /></RouteGuard>} />
                     <Route path="*"            element={<Navigate to="/" replace />} />
                   </Routes>
