@@ -6,7 +6,7 @@ import { validate } from '../middleware/validation.js';
 
 const router = express.Router();
 
-router.post('/submit', authMiddleware, reviewLimiter, validate.review, feedbackController.submit);
+router.post('/submit', reviewLimiter, validate.review, feedbackController.submit);
 router.get('/', feedbackController.getAll);
 router.get('/user/:userId', authMiddleware, feedbackController.getByUser);
 

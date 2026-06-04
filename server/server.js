@@ -19,6 +19,7 @@ import searchRoutes from './routes/search.js';
 import feedbackRoutes from './routes/feedback.js';
 import aiRoutes from './routes/ai.js';
 import compareRoutes from './routes/compare.js';
+import adminRoutes from './routes/admin.js';
 
 // AI Service
 import { aiService } from './services/aiService.js';
@@ -82,14 +83,10 @@ app.get('/api/health', async (req, res) => {
 
     const aiOk = await aiService.verifyAIHealth();
     
-    let statusCode = 200;
     let status = "healthy";
-    
     if (!dbOk) {
-        statusCode = 503;
         status = "failed";
     } else if (!aiOk) {
-        statusCode = 200;
         status = "degraded";
     }
 
@@ -101,7 +98,7 @@ app.get('/api/health', async (req, res) => {
         timestamp: new Date().toISOString()
     };
 
-    return res.status(statusCode).json(payload);
+    return res.status(200).json(payload);
 });
 
 // 2. Register Routes
@@ -117,6 +114,7 @@ app.all('/api/ai/recommend*', (req, res) => {
 
 app.use('/api/search', productsLimiter, searchRoutes);
 app.use('/api/ai/chat', aiLimiter, chatRoutes);
+app.use('/api/chat', aiLimiter, chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
 // Redirect duplicate `/api/feedbacks` -> `/api/feedback` to choose one canonical version
@@ -127,6 +125,7 @@ app.all('/api/feedbacks*', (req, res) => {
 
 app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/compare', aiLimiter, compareRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 3. Centralized Universal Error Handler Middleware
 app.use(errorMiddleware);

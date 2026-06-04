@@ -1,6 +1,6 @@
 import { supabase } from '../../db.js';
 import { logger } from '../../utils/logger.js';
-import fetch from 'node-fetch';
+import { llmClient } from '../../src/ai/llmClient.js';
 
 function getJaccardOverlap(list1, list2) {
     if (!list1 || !list2 || list1.length === 0 || list2.length === 0) return 0.0;
@@ -120,71 +120,95 @@ export const recommendationService = {
         }
     },
 
-    /**
-     * precision inventory matching against prompt using Gemini/Groq
-     */
     async getAIRecommendations(prompt) {
         try {
             logger.info(`[RECOMMENDATION SERVICE] Querying AI matches for prompt: "${prompt}"`, 'AI_GATEWAY');
-            const activeKey = process.env.GEMINI_API_KEY;
-            
-            if (activeKey) {
+            const geminiKey = process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIzaSy') ? process.env.AI_API_KEY : null);
+            const groqKey = process.env.GROQ_API_KEY || null;
+
+            if (geminiKey || groqKey) {
                 try {
                     const { data: products } = await supabase.from('products').select('*');
-                    const allProducts = (products || []).filter(p => p.category === 'Skincare' || p.category === 'Skincare & Beauty');
+                    const allProducts = products || [];
                     
                     const productContext = allProducts.map(p => 
                         `ID: ${p.id}, Name: ${p.title || p.name}, Price: $${p.price}, Category: ${p.category}, Description: ${p.explanation || p.description}`
                     ).join('\n');
 
                     const systemInstruction = `You are a High-Precision Product Recommendation Engine.
-                    Select up to 5 best matching products from the provided inventory for the user prompt.
-                    Return ONLY a JSON list of objects: [{"id": 101, "matchScore": 95, "explanation": "Matching reason", "relativityTags": [{"label": "Tag", "color": "#10b981"}]}].
-                    Do not add Markdown formatting. Clean JSON array only.`;
+Select up to 5 best matching products from the provided inventory for the user prompt.
+Return ONLY a JSON list of objects: [{"id": 101, "matchScore": 95, "explanation": "Matching reason", "relativityTags": [{"label": "Tag", "color": "#6366f1"}]}].
+Do not add Markdown formatting. Clean JSON array only.`;
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`;
-                    const res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: `USER PROMPT: ${prompt}\n\nINVENTORY:\n${productContext}` }] }],
-                            systemInstruction: { parts: [{ text: systemInstruction }] },
-                            generationConfig: { responseMimeType: 'application/json' }
-                        })
+                    const finalPrompt = `${systemInstruction}\n\nUSER PROMPT: ${prompt}\n\nINVENTORY:\n${productContext}`;
+
+                    const text = await llmClient.query({
+                        prompt: finalPrompt,
+                        jsonMode: true,
+                        keys: { geminiKey, groqKey }
                     });
 
-                    if (res.ok) {
-                        const json = await res.json();
-                        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (text) {
-                            const recs = JSON.parse(text);
-                            const productMap = new Map(allProducts.map(p => [p.id, p]));
-                            const formatted = [];
-                            
-                            for (const rec of recs) {
-                                const p = productMap.get(Number(rec.id));
-                                if (p) {
-                                    formatted.append({
-                                        id: p.id,
-                                        name: p.title || p.name,
-                                        price: Number(p.price),
-                                        category: p.category,
-                                        image_url: p.thumbnail || p.image_url,
-                                        matchScore: rec.matchScore,
-                                        explanation: rec.explanation,
-                                        relativityTags: rec.relativityTags
-                                    });
-                                }
+                    if (text) {
+                        const recs = JSON.parse(text);
+                        const productMap = new Map(allProducts.map(p => [p.id, p]));
+                        const formatted = [];
+                        
+                        for (const rec of recs) {
+                            const p = productMap.get(Number(rec.id));
+                            if (p) {
+                                formatted.push({
+                                    id: p.id,
+                                    name: p.title || p.name,
+                                    price: Number(p.price),
+                                    category: p.category,
+                                    image_url: p.thumbnail || p.image_url,
+                                    matchScore: rec.matchScore,
+                                    explanation: rec.explanation,
+                                    relativityTags: rec.relativityTags
+                                });
                             }
-                            return formatted;
                         }
+                        return formatted;
                     }
                 } catch (e) {
                     logger.error('[RECOMMENDATION SERVICE] AI matchmaking failed, falling back to heuristics', e, 'AI_GATEWAY');
                 }
             }
 
-            // Heuristics fallback
+            // Heuristics fallback: find items in products containing prompt keywords
+            try {
+                const { data: products } = await supabase.from('products').select('*');
+                const words = prompt.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                if (products && words.length > 0) {
+                    const matches = products.filter(p => {
+                        const title = (p.title || p.name || '').toLowerCase();
+                        const desc = (p.description || '').toLowerCase();
+                        return words.some(w => title.includes(w) || desc.includes(w));
+                    }).slice(0, 5).map(p => ({
+                        id: p.id,
+                        name: p.title || p.name,
+                        price: Number(p.price),
+                        category: p.category,
+                        image_url: p.thumbnail || p.image_url,
+                        matchScore: 80,
+                        explanation: 'Matched based on local database keyword heuristic overlap.',
+                        relativityTags: [{ label: 'Heuristic Match', color: '#10b981' }]
+                    }));
+                    return matches;
+                }
+                return (products || []).slice(0, 5).map(p => ({
+                    id: p.id,
+                    name: p.title || p.name,
+                    price: Number(p.price),
+                    category: p.category,
+                    image_url: p.thumbnail || p.image_url,
+                    matchScore: 70,
+                    explanation: 'Popular item recommended as default fallback.',
+                    relativityTags: [{ label: 'Popular', color: '#6366f1' }]
+                }));
+            } catch (fallbackErr) {
+                logger.error('[RECOMMENDATION SERVICE] Heuristics fallback failed:', fallbackErr, 'AI_GATEWAY');
+            }
             return [];
         } catch (err) {
             logger.error('[RECOMMENDATION SERVICE] Recommendation query failed:', err, 'AI_GATEWAY');

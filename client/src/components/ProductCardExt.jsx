@@ -45,7 +45,7 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
                 </span>
             </div>
 
-            <div className="ext-card-image" onClick={() => navigate(`/product/${product.id}`)}>
+            <div className="ext-card-image" style={{ cursor: 'pointer' }} onClick={() => navigate(`/product/${product.id}`)}>
                 <SafeImage src={product.image_url} alt={product.name} />
             </div>
 
@@ -82,36 +82,109 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
                     </button>
                 </div>
 
-                {/* Simplified unified action row */}
-                <div className="ext-action-row">
-                    <button className="ext-main-btn" onClick={() => onAddChat(product)}>
-                        <MessageCircle size={14} />
-                        AI Consult
-                    </button>
-                    
-                    <button 
-                        className={`ext-icon-btn ${isSelected ? 'active' : ''}`} 
-                        title={isSelected ? 'Selected for comparison' : 'Compare product'} 
-                        onClick={() => addToComparison(product)}
-                    >
-                        {isSelected ? <Check size={15} /> : <GitCompare size={15} />}
-                    </button>
-                    
-                    <button 
-                        className="ext-icon-btn" 
-                        title="Add to Watchlist" 
-                        onClick={() => addToCart(product)}
-                    >
-                        <Bell size={15} />
-                    </button>
-                    
-                    <button 
-                        className="ext-icon-btn" 
-                        title="View Verified Reviews" 
-                        onClick={() => onViewFeedback(product)}
-                    >
-                        <Star size={15} />
-                    </button>
+                {/* Two-row premium actions block */}
+                <div className="ext-action-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
+                    {/* Row 1: AI Consult + Feedback */}
+                    <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                        <button 
+                            className="ext-main-btn" 
+                            onClick={(e) => { e.stopPropagation(); onAddChat(product); }} 
+                            style={{ 
+                                flex: 1, 
+                                height: '36px', 
+                                fontSize: '0.75rem', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '4px',
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                                border: 'none',
+                                color: 'white',
+                                fontWeight: '700',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <MessageCircle size={13} />
+                            AI Consult
+                        </button>
+                        
+                        <button 
+                            className="ext-feedback-btn" 
+                            onClick={(e) => { e.stopPropagation(); onViewFeedback(product); }}
+                            style={{ 
+                                flex: 1, 
+                                height: '36px',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                                border: 'none',
+                                color: 'black',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <Star size={13} fill="currentColor" />
+                            Feedback
+                        </button>
+                    </div>
+
+                    {/* Row 2: Compare + Watchlist */}
+                    <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                        <button 
+                            className={`ext-compare-btn ${isSelected ? 'active' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); addToComparison(product); }}
+                            style={{
+                                flex: 1,
+                                height: '34px',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                background: isSelected ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.03)',
+                                border: isSelected ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
+                                color: isSelected ? '#a5b4fc' : '#e2e8f0',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {isSelected ? <Check size={13} className="text-accent" /> : <GitCompare size={13} />}
+                            {isSelected ? 'Compared' : 'Compare'}
+                        </button>
+                        
+                        <button 
+                            className="ext-watchlist-btn"
+                            onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                            style={{
+                                flex: 1,
+                                height: '34px',
+                                borderRadius: '8px',
+                                fontSize: '0.75rem',
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: '#e2e8f0',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <Bell size={13} />
+                            Watchlist
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -49,6 +49,8 @@ const Products = () => {
     const [visibleCount, setVisibleCount] = useState(24);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [isSearchingLive, setIsSearchingLive] = useState(false);
+    const [searchedQueries, setSearchedQueries] = useState(new Set());
 
     // Filter states
     const [searchQuery, setSearchQuery] = useState('');
@@ -84,7 +86,8 @@ const Products = () => {
             const prodRes = await fetch(`${API_BASE_URL}/api/products/getProducts`);
             if (!prodRes.ok) throw new Error('Failed to fetch from DB');
             const resJson = await prodRes.json();
-            const prodData = Array.isArray(resJson) ? resJson : (resJson.data || []);
+            const raw = resJson.data || resJson.products || resJson;
+            const prodData = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
             
             // Double safety sanitization on client side for image URLs
             const sanitizedData = prodData.map(p => {
@@ -176,14 +179,17 @@ const Products = () => {
 
         // 2. Search query filter
         if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            const matchesTitle = p.title?.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q);
-            const matchesBrand = p.brand?.toLowerCase().includes(q);
-            const matchesDesc = p.description?.toLowerCase().includes(q);
-            const matchesCategory = p.category?.toLowerCase().includes(q);
-            const matchesKeywords = Array.isArray(p.keywords) && p.keywords.some(k => k.toLowerCase().includes(q));
+            const qWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+            const matchesWords = qWords.every(word => {
+                const matchesTitle = p.title?.toLowerCase().includes(word) || p.name?.toLowerCase().includes(word);
+                const matchesBrand = p.brand?.toLowerCase().includes(word);
+                const matchesDesc = p.description?.toLowerCase().includes(word);
+                const matchesCategory = p.category?.toLowerCase().includes(word);
+                const matchesKeywords = Array.isArray(p.keywords) && p.keywords.some(k => k.toLowerCase().includes(word));
+                return matchesTitle || matchesBrand || matchesDesc || matchesCategory || matchesKeywords;
+            });
             
-            if (!matchesTitle && !matchesBrand && !matchesDesc && !matchesCategory && !matchesKeywords) {
+            if (!matchesWords) {
                 return false;
             }
         }
@@ -223,6 +229,74 @@ const Products = () => {
         }
         return 0;
     });
+
+    const handleLiveSearch = async (query) => {
+        if (!query || query.trim() === '') return;
+        const q = query.trim().toLowerCase();
+        if (searchedQueries.has(q)) return;
+
+        setIsSearchingLive(true);
+        try {
+            const geminiKey = localStorage.getItem('gemini_api_key') || '';
+            const groqKey = localStorage.getItem('groq_api_key') || '';
+
+            const url = `${API_BASE_URL}/api/products/search?q=${encodeURIComponent(query)}`;
+            const res = await fetch(url, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(geminiKey && { 'x-gemini-key': geminiKey }),
+                    ...(groqKey && { 'x-groq-key': groqKey })
+                }
+            });
+
+            if (!res.ok) throw new Error('Live search request failed');
+            const dataJson = await res.json();
+            const liveProds = Array.isArray(dataJson) ? dataJson : (dataJson.data || []);
+
+            if (liveProds.length > 0) {
+                setProducts(prevProducts => {
+                    const merged = [...prevProducts];
+                    liveProds.forEach(np => {
+                        if (!merged.some(p => p.id === np.id || (p.title || '').toLowerCase() === (np.title || '').toLowerCase())) {
+                            let img = np.image_url || np.thumbnail || '';
+                            if (img && img.includes('cdn.dummyjson.com/product-images/')) {
+                                img = img.replace('cdn.dummyjson.com/product-images/', 'cdn.dummyjson.com/products/images/');
+                            }
+                            merged.push({
+                                ...np,
+                                name: np.title || np.name || 'Unknown Product',
+                                image_url: img,
+                                thumbnail: img
+                            });
+                        }
+                    });
+                    return merged;
+                });
+            }
+            
+            setSearchedQueries(prev => {
+                const updated = new Set(prev);
+                updated.add(q);
+                return updated;
+            });
+        } catch (err) {
+            console.error("Error during live search:", err);
+        } finally {
+            setIsSearchingLive(false);
+        }
+    };
+
+    useEffect(() => {
+        if (searchQuery && filteredProducts.length === 0) {
+            const q = searchQuery.trim().toLowerCase();
+            if (!searchedQueries.has(q) && !isSearchingLive) {
+                const timer = setTimeout(() => {
+                    handleLiveSearch(searchQuery);
+                }, 800);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [searchQuery, filteredProducts.length, searchedQueries, isSearchingLive]);
 
     // Navigation triggers
     const handleChat = (product) => {
@@ -266,12 +340,21 @@ const Products = () => {
                 <div className="filter-group">
                     <h4 className="filter-title">Search</h4>
                     <div className="search-input-wrapper">
-                        <Search className="search-icon" size={16} />
+                        {isSearchingLive ? (
+                            <RefreshCw className="search-icon animate-spin text-accent" size={16} />
+                        ) : (
+                            <Search className="search-icon" size={16} />
+                        )}
                         <input 
                             type="text" 
                             placeholder="Search catalog..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleLiveSearch(searchQuery);
+                                }
+                            }}
                         />
                         {searchQuery && (
                             <button className="search-clear" onClick={() => setSearchQuery('')}>
@@ -468,7 +551,7 @@ const Products = () => {
                             <SlidersHorizontal size={16} /> Filters
                         </button>
                         <span className="results-count">
-                            Showing <strong>{sortedProducts.length}</strong> {sortedProducts.length === 1 ? 'product' : 'products'}
+                            Explore Our Vetted Catalog
                         </span>
                     </div>
 
@@ -488,8 +571,16 @@ const Products = () => {
                     </div>
                 </header>
                 
-                {loading ? (
-                    <SkeletonLoader type="product-grid" count={6} />
+                {loading || (isSearchingLive && sortedProducts.length === 0) ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
+                        {isSearchingLive && (
+                            <div className="live-search-loading glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1.25rem', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px' }}>
+                                <RefreshCw className="animate-spin text-accent" size={20} />
+                                <span style={{ color: '#fff', fontSize: '0.95rem', fontWeight: '500' }}>Retrieving products lively from external APIs for "{searchQuery}"...</span>
+                            </div>
+                        )}
+                        <SkeletonLoader type="product-grid" count={6} />
+                    </div>
                 ) : error ? (
                     <div className="empty-results glass-panel animate-glow" style={{ textAlign: 'center', padding: '3rem 1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', width: '100%', maxWidth: '600px', margin: '2rem auto' }}>
                         <AlertCircle size={48} className="text-error" style={{ color: '#ef4444' }} />
@@ -503,17 +594,30 @@ const Products = () => {
                     <div className="empty-results glass-panel">
                         <Package size={64} className="text-muted" opacity={0.3} />
                         <h3>No Products Found</h3>
-                        <p className="text-muted">No items matched your selected filters. Try broadening your criteria or reset the sidebar.</p>
-                        <button className="primary-btn mt-4" onClick={handleClearAll}>
-                            Reset All Filters
-                        </button>
+                        <p className="text-muted">No items matched your search filters. Try running a live external lookup, broadening your criteria, or resetting the sidebar.</p>
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            {searchQuery && (
+                                <button className="primary-btn" onClick={() => handleLiveSearch(searchQuery)}>
+                                    Search Lively for "{searchQuery}" 🚀
+                                </button>
+                            )}
+                            <button className="primary-btn" onClick={handleClearAll} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', boxShadow: 'none' }}>
+                                Reset All Filters
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <>
+                        {isSearchingLive && (
+                            <div className="live-search-loading glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', width: '100%' }}>
+                                <RefreshCw className="animate-spin text-accent" size={18} />
+                                <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: '500' }}>Checking for more live matches for "{searchQuery}"...</span>
+                            </div>
+                        )}
                         <div className="products-grid">
                             {sortedProducts.slice(0, visibleCount).map((product, index) => (
                                 <ProductCardExt 
-                                    key={product.id} 
+                                    key={product.id || `scraped-${product.title || product.name}-${index}`} 
                                     index={index}
                                     product={product} 
                                     onAddChat={handleChat}

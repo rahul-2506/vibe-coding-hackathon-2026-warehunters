@@ -16,16 +16,15 @@ const IngredientScanner = () => {
     const [products, setProducts] = useState([]);
     const [matchedInventory, setMatchedInventory] = useState([]);
 
-    // Fetch skincare products from Supabase for local inventory mapping
+    // Fetch skincare products from backend API for local inventory mapping
     useEffect(() => {
         const fetchSkincare = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('products')
-                    .select('*')
-                    .eq('category', 'Skincare');
-                if (!error && data) {
-                    setProducts(data);
+                const res = await fetch(`${API_BASE_URL}/api/products/category/Skincare & Beauty`);
+                if (!res.ok) throw new Error(`Status ${res.status}`);
+                const json = await res.json();
+                if (json.success && json.data) {
+                    setProducts(json.data);
                 }
             } catch (err) {
                 console.error("Failed to load inventory for matches:", err);

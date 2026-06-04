@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Send, AlertCircle, Package, Mic, MicOff, FlaskConical, Sparkles, Activity, Compass, HeartPulse } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bot, Send, AlertCircle, Package, Mic, MicOff, FlaskConical, Sparkles, Activity, Compass, HeartPulse, Layers, Zap, ShoppingBag, Home as HomeIcon, Shirt } from 'lucide-react';
 import RecommendationCard from '../components/RecommendationCard';
+import ProductCardExt from '../components/ProductCardExt';
 import { API_BASE_URL } from '../config/api';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { supabase } from '../config/supabaseClient';
@@ -62,11 +64,21 @@ const INGREDIENTS_DATA = [
 ];
 
 const Home = () => {
+    const navigate = useNavigate();
     const [prompt, setPrompt] = useState('');
     const [recommendations, setRecommendations] = useState([]);
+    const [activeCategory, setActiveCategory] = useState('All');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [isListening, setIsListening] = useState(false);
+
+    const handleChat = (product) => {
+        navigate('/chatbot', { state: { product } });
+    };
+
+    const handleFeedback = (product) => {
+        navigate(`/product/${product.id}`, { state: { product } });
+    };
 
     // Voice Recognition Setup
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -112,6 +124,57 @@ const Home = () => {
         }
     };
 
+    const fetchProductsForCategory = (category) => {
+        setLoading(true);
+        setError('');
+        
+        let url = `${API_BASE_URL}/api/products/getProducts?limit=24`;
+        if (category && category !== 'All') {
+            url += `&category=${encodeURIComponent(category)}`;
+        }
+        
+        fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to load products');
+                return res.json();
+            })
+            .then(resJson => {
+                const raw = resJson.data || resJson.products || resJson;
+                const prodData = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
+                const formatted = prodData.map(p => ({
+                    id: p.id,
+                    name: p.title || p.name,
+                    title: p.title || p.name,
+                    price: Number(p.price),
+                    category: p.category,
+                    image_url: p.thumbnail || p.image_url,
+                    thumbnail: p.thumbnail || p.image_url,
+                    brand: p.brand,
+                    stock: p.stock,
+                    rating: p.rating,
+                    trust_score: p.trust_score,
+                    review_count: p.review_count,
+                    description: p.description,
+                    matchScore: p.trust_score || 95,
+                    explanation: p.description || 'Verified product from our catalog.',
+                    relativityTags: [{ label: 'Featured Product', color: '#6366f1' }]
+                }));
+                setRecommendations(formatted);
+            })
+            .catch(err => {
+                console.warn("Unable to load catalog products:", err.message);
+                setError("Could not retrieve products for this category.");
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    };
+
+    const handleCategoryClick = (category) => {
+        setActiveCategory(category);
+        setPrompt(''); // Clear query when navigating departments
+    };
+
     useEffect(() => {
         const handleDemoTrigger = (e) => {
             const query = e.detail;
@@ -143,6 +206,13 @@ const Home = () => {
             window.removeEventListener('rl-trigger-demo-search', handleDemoTrigger);
         };
     }, []);
+
+    useEffect(() => {
+        const pendingQuery = sessionStorage.getItem('rl-demo-query');
+        if (pendingQuery) return;
+
+        fetchProductsForCategory(activeCategory);
+    }, [activeCategory]);
 
     const handleIngredientClick = (ing) => {
         setPrompt(ing.query);
@@ -295,6 +365,72 @@ const Home = () => {
                 </div>
             </form>
 
+            {/* Horizontal Department Category Bar (Flipkart/Amazon style) */}
+            <div className="home-category-bar glass-panel" style={{ 
+                display: 'flex', 
+                gap: '1rem', 
+                padding: '1rem', 
+                overflowX: 'auto', 
+                borderRadius: '16px', 
+                margin: '1.5rem 0', 
+                justifyContent: 'center',
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                backdropFilter: 'blur(10px)'
+            }}>
+                {[
+                    { name: 'All', icon: <Layers size={20} /> },
+                    { name: 'Skincare & Beauty', icon: <Sparkles size={20} className="cat-icon-skincare" /> },
+                    { name: 'Electronics', icon: <Zap size={20} className="cat-icon-electronics" /> },
+                    { name: 'Groceries', icon: <ShoppingBag size={20} className="cat-icon-groceries" /> },
+                    { name: 'Home & Living', icon: <HomeIcon size={20} className="cat-icon-home" /> },
+                    { name: 'Fashion & Apparel', icon: <Shirt size={20} className="cat-icon-fashion" /> },
+                    { name: 'Others', icon: <Package size={20} className="cat-icon-default" /> }
+                ].map(cat => (
+                    <div 
+                        key={cat.name} 
+                        className={`home-category-item ${activeCategory === cat.name ? 'active' : ''}`}
+                        onClick={() => handleCategoryClick(cat.name)}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.6rem 1.2rem',
+                            borderRadius: '12px',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                            border: activeCategory === cat.name ? '1px solid var(--accent-color)' : '1px solid rgba(255,255,255,0.05)',
+                            background: activeCategory === cat.name ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.02)',
+                            minWidth: '100px',
+                            boxShadow: activeCategory === cat.name ? '0 0 15px rgba(99, 102, 241, 0.15)' : 'none'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: activeCategory === cat.name ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)',
+                            color: activeCategory === cat.name ? 'black' : 'white',
+                            transition: 'all 0.25s'
+                        }}>
+                            {cat.icon}
+                        </div>
+                        <span style={{ 
+                            fontSize: '0.75rem', 
+                            fontWeight: '600', 
+                            whiteSpace: 'nowrap', 
+                            color: activeCategory === cat.name ? 'var(--accent-color)' : '#94a3b8',
+                            transition: 'all 0.25s'
+                        }}>{cat.name}</span>
+                    </div>
+                ))}
+            </div>
+
             {/* Clinical Lab: Ingredient Quick-Analysis */}
             <div className="clinical-lab-section">
                 <div className="section-header">
@@ -331,6 +467,14 @@ const Home = () => {
             </div>
 
             <div className="recommendations-area">
+                {!loading && recommendations.length > 0 && (
+                    <div className="section-header" style={{ marginBottom: '1.5rem', borderBottom: 'none' }}>
+                        <Compass className="text-accent section-icon" size={24} />
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: '800', margin: 0 }}>
+                            {prompt ? "AI Verifications & Recommendations" : "Featured Products Showcase"}
+                        </h2>
+                    </div>
+                )}
                 {loading && (
                     <div className="processing-state text-accent glass-panel">
                         <div className="scanner-line"></div>
@@ -346,9 +490,19 @@ const Home = () => {
                 )}
 
                 <div className="cards-grid">
-                    {loading && <SkeletonLoader type="recommendations" count={3} />}
-                    {!loading && recommendations.length > 0 && recommendations.map(rec => (
-                        <RecommendationCard key={rec.id} product={rec} />
+                    {loading && <SkeletonLoader type={prompt ? "recommendations" : "product-grid"} count={6} />}
+                    {!loading && recommendations.length > 0 && recommendations.map((rec, idx) => (
+                        prompt ? (
+                            <RecommendationCard key={rec.id || idx} product={rec} />
+                        ) : (
+                            <ProductCardExt 
+                                key={rec.id || idx} 
+                                index={idx}
+                                product={rec} 
+                                onAddChat={handleChat}
+                                onViewFeedback={handleFeedback}
+                            />
+                        )
                     ))}
                 </div>
 

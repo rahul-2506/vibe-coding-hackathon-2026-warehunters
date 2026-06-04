@@ -18,7 +18,8 @@ async function initializeDatabase() {
         { name: 'reviews', query: supabase.from('reviews').select('*').limit(1) },
         { name: 'chat_sessions', query: supabase.from('chat_sessions').select('*').limit(1) },
         { name: 'chat_messages', query: supabase.from('chat_messages').select('*').limit(1) },
-        { name: 'user_preferences', query: supabase.from('user_preferences').select('*').limit(1) }
+        { name: 'user_preferences', query: supabase.from('user_preferences').select('*').limit(1) },
+        { name: 'user_memories', query: supabase.from('user_memories').select('*').limit(1) }
     ];
 
     logger.info('Auditing Supabase database table integrations...', 'DATABASE_INIT');
@@ -30,7 +31,7 @@ async function initializeDatabase() {
         try {
             const { error } = await table.query;
             if (error) {
-                const exists = error.code !== '42P01'; // 42P01: Table does not exist
+                const exists = error.code !== '42P01' && error.code !== 'PGRST205' && !error.message.includes('Could not find');
                 if (!exists) {
                     migrationsRequired = true;
                 }
@@ -60,10 +61,11 @@ async function initializeDatabase() {
         console.log('==================================================');
         console.log(' ⚠️  ATTENTION: SCHEMA MIGRATIONS REQUIRED         ');
         console.log('==================================================');
-        console.log('New persistent session memory tables are missing.');
-        console.log('To apply these tables, please execute the SQL migration script located at:');
+        console.log('New persistent session memory or dynamic product vector tables are missing.');
+        console.log('To apply these tables, please execute the SQL migration scripts located at:');
         console.log(` -> database/migrations/01_session_memory.sql`);
-        console.log('\nYou can copy and paste the contents of this file directly into the');
+        console.log(` -> database/migrations/16_dynamic_products.sql`);
+        console.log('\nYou can copy and paste the contents of these files directly into the');
         console.log('Supabase SQL Editor dashboard to create these tables.');
         console.log('==================================================\n');
     } else {

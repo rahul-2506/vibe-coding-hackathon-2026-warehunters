@@ -6,6 +6,7 @@
 
 import { supabase } from '../../db.js';
 import { productService } from '../productService.js';
+import { vectorSearchService } from '../vectorSearchService.js';
 import { logger } from '../../utils/logger.js';
 
 // Concern to ingredient mapper for "Why Recommended" cards
@@ -37,11 +38,12 @@ export async function toolSearchProducts({ query, category, skinType, concern, b
     }
 
     try {
-        let products = await productService.searchProducts(query || '', category, null);
+        // Call semantic vector search and ranking
+        let products = await vectorSearchService.semanticSearch(query || '', category, budget, limit * 3);
 
         // Filter and prefer Skincare & Beauty when skin concerns or skin types are active
         if (concern || skinType) {
-            const skincare = products.filter(p => p.category === 'Skincare & Beauty');
+            const skincare = products.filter(p => p.category === 'Skincare & Beauty' || p.category === 'Skincare');
             if (skincare.length >= 2) products = skincare;
         }
 
@@ -50,9 +52,6 @@ export async function toolSearchProducts({ query, category, skinType, concern, b
             const filtered = products.filter(p => p.price <= budget);
             if (filtered.length >= 1) products = filtered;
         }
-
-        // Sort by trust score descending by default
-        products = products.sort((a, b) => (b.trust_score || 80) - (a.trust_score || 80));
 
         const results = products.slice(0, limit).map(p => {
             const priceVal = Number(p.price);

@@ -188,6 +188,39 @@ export async function vchatOrchestrate({ message, userId, sessionContext, gemini
     // 5. Update session memory with message contents (only if not in guided flow)
     sessionMemory.learnFromMessage(safeUserId, message);
 
+    // Extract dynamic query budget and category (Shopping Assistant upgrade)
+    let queryBudget = null;
+    const budgetMatch = lowerMsg.match(/(?:under|below|budget\s+of|<\s*|price\s*<\s*)\s*(?:rs\.?\s*|₹|\$)?\s*(\d+)/i);
+    if (budgetMatch) {
+        queryBudget = parseInt(budgetMatch[1]);
+        sessionMemory.update(safeUserId, { budget: queryBudget });
+    }
+
+    let queryCategory = null;
+    const catMap = {
+        'electronics': ['phone', 'mobile', 'headphones', 'buds', 'watch', 'speaker', 'keyboard', 'mouse', 'monitor', 'router', 'powerbank', 'charger'],
+        'laptops': ['laptop', 'notebook', 'macbook', 'pc', 'computer'],
+        'skincare': ['serum', 'facewash', 'wash', 'cream', 'moisturizer', 'lotion', 'toner', 'cleanser', 'sunscreen', 'skincare', 'beauty'],
+        'fashion': ['shirt', 'pant', 'jeans', 'shoes', 'sneakers', 'jacket', 'hoodie', 'apparel', 'fashion'],
+        'groceries': ['tea', 'coffee', 'honey', 'oats', 'oil', 'milk', 'grocery', 'groceries'],
+        'home': ['chair', 'table', 'lamp', 'sofa', 'rug', 'chest', 'linen', 'desk', 'living']
+    };
+
+    for (const [catName, keywords] of Object.entries(catMap)) {
+        if (keywords.some(kw => lowerMsg.includes(kw))) {
+            if (catName === 'electronics' || catName === 'laptops') queryCategory = 'Electronics';
+            else if (catName === 'skincare') queryCategory = 'Skincare & Beauty';
+            else if (catName === 'fashion') queryCategory = 'Fashion & Apparel';
+            else if (catName === 'groceries') queryCategory = 'Groceries';
+            else if (catName === 'home') queryCategory = 'Home & Living';
+            
+            if (queryCategory) {
+                sessionMemory.update(safeUserId, { preferredCategories: [queryCategory] });
+            }
+            break;
+        }
+    }
+
     // 6. Classify intent
     let { intent } = classifyIntent(message);
 
@@ -329,9 +362,10 @@ export async function vchatOrchestrate({ message, userId, sessionContext, gemini
             const searchQuery = extractSearchQuery(queryText) || queryText;
             const toolResult = await toolSearchProducts({
                 query: searchQuery,
+                category: queryCategory || (session.preferredCategories && session.preferredCategories[0]) || null,
                 skinType: session.skinType,
                 concern: session.concerns[0],
-                budget: (intent === 'PRICE_INQUIRY' || intent === 'PRODUCT_RECOMMENDATION') ? session.budget : null,
+                budget: queryBudget || session.budget || null,
                 limit: 5,
             });
 

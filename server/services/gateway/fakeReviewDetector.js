@@ -33,7 +33,8 @@ export const fakeReviewDetector = {
         
         for (const prev of pastReviews) {
             const prevText = (prev.review_text || prev.review || '').trim();
-            if (!prevText || prevText === text) continue;
+            if (!prevText) continue;
+            if (prev.id && reviewData.id && prev.id === reviewData.id) continue;
 
             const prevWords = new Set(prevText.toLowerCase().split(/\s+/).filter(w => w.length > 2));
             if (words.size === 0 || prevWords.size === 0) continue;
@@ -102,9 +103,15 @@ export const fakeReviewDetector = {
         if (authenticityScore < 45) {
             verdict = 'LIKELY_FAKE';
             explanation = 'Flagged as likely artificial. Identical patterns or severe mismatches detected.';
+            if (isMismatch) {
+                explanation += ' Also exhibits conflicts between rating and experience mood.';
+            }
         } else if (authenticityScore < 75) {
             verdict = 'SUSPICIOUS';
             explanation = 'Suspicious properties found: lacks specificity or exhibits keyword repetition.';
+            if (isMismatch) {
+                explanation = 'Suspicious properties found: rating conflicts with the selected experience mood.';
+            }
         }
 
         return {

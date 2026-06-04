@@ -7,7 +7,7 @@
  *   { success: true, data: { response, type, data, followUpQuestions, timestamp } }
  */
 
-import { vchatOrchestrate } from '../services/vchat/agent.js';
+import { streamRouter } from '../src/chat/streamRouter.js';
 import { aiGateway } from '../services/gateway/aiGateway.js';
 import { response } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
@@ -26,30 +26,57 @@ export const vchatController = {
             }
 
             // Extract userId from authenticated user (set by authMiddleware)
-            const userId = req.user?.id || null;
+            const userId = req.user?.id || 'anonymous';
 
             // Extract API keys from request headers
             const geminiKey = req.headers['x-gemini-key'] || null;
             const openaiKey = req.headers['x-openai-key'] || null;
 
-            logger.info(`[VCHAT CONTROLLER] Incoming chat from user=${userId || 'guest'}: "${message.substring(0, 100)}"`, 'VCHAT');
+            logger.info(`[VCHAT CONTROLLER] Incoming chat from user=${userId}: "${message.substring(0, 100)}"`, 'VCHAT');
 
-            // Run the agent orchestration pipeline
-            const result = await vchatOrchestrate({
-                message: message.trim(),
+            // Set headers for simulation or use streamRouter for uniform response structure
+            let fullResponseText = '';
+            const simulatedRes = {
+                write(chunk) {
+                    if (chunk.startsWith('data: ')) {
+                        try {
+                            const dataStr = chunk.slice(6).trim();
+                            if (dataStr === '[DONE]') return;
+                            const parsed = JSON.parse(dataStr);
+                            if (parsed.text) {
+                                fullResponseText += parsed.text;
+                            }
+                        } catch (e) {}
+                    }
+                },
+                end() {}
+            };
+
+            const abortController = new AbortController();
+
+            // Run the agent orchestration pipeline through our SSE stream router and capture text
+            await streamRouter.stream(
+                message.trim(),
+                sessionContext || {},
                 userId,
-                sessionContext: sessionContext || {},
-                geminiKey,
-                openaiKey,
-            });
+                simulatedRes,
+                abortController.signal,
+                { geminiKey, openaiKey }
+            );
 
-            // The result always has: { response, type, data, followUpQuestions, timestamp }
-            // We return it preserving the legacy `response` key that the frontend expects
+            // Construct final response object shape matching legacy
+            const result = {
+                response: fullResponseText || `⚠️ **VChat Offline:** Failed to generate recommendations. Please try again.`,
+                type: 'text',
+                data: null,
+                followUpQuestions: ['Start Skincare Discovery Flow 🚀', 'Build me a routine 🌅'],
+                timestamp: new Date().toISOString()
+            };
+
             return response.success(res, result);
 
         } catch (err) {
             logger.error(`[VCHAT CONTROLLER] Fatal error in chat pipeline: ${err.message}`, err, 'VCHAT');
-            // Return a graceful degraded response instead of a 500 crash
             return response.success(res, {
                 response: `⚠️ **VChat Offline:** The AI Shopping Assistant is temporarily unavailable. Please try again shortly.\n\n*Technical details: ${err.message}*`,
                 type: 'error',
@@ -82,7 +109,17 @@ export const vchatController = {
 
         try {
             logger.info(`[VCHAT STREAM] Initializing stream query for user=${userId}: "${message.substring(0, 50)}"`, 'VCHAT');
-            await aiGateway.chat.streamChat(message, { userId, sessionContext }, res, abortController.signal);
+            const geminiKey = req.headers['x-gemini-key'] || null;
+            const openaiKey = req.headers['x-openai-key'] || null;
+            
+            await streamRouter.stream(
+                message, 
+                sessionContext || {}, 
+                userId,
+                res, 
+                abortController.signal, 
+                { geminiKey, openaiKey }
+            );
         } catch (err) {
             logger.error(`[VCHAT STREAM FATAL] Generation stream aborted or failed: ${err.message}`, err, 'VCHAT');
             res.write(`data: ${JSON.stringify({ text: `\n\n⚠️ **Streaming Interrupted:** ${err.message}` })}\n\n`);

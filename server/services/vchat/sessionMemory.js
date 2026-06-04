@@ -28,6 +28,7 @@ function getOrCreate(userId) {
             discoveryStep: null,       // null | 1 | 2 | 3 | 4 | 5 (guided discovery state machine)
             lastSearchQuery: null,     // stored to allow follow-up conversational search refinement
             messageCount: 0,
+            chatHistory: [],           // Conversation memory
             createdAt: now,
             updatedAt: now,
         };
@@ -127,6 +128,19 @@ export const sessionMemory = {
     reset(userId) {
         sessions.delete(userId);
         return getOrCreate(userId);
+    },
+
+    /**
+     * Appends assistant message to chat history.
+     */
+    addAssistantMessage(userId, message) {
+        const session = getOrCreate(userId);
+        session.chatHistory = session.chatHistory || [];
+        session.chatHistory.push({ role: 'assistant', text: message });
+        if (session.chatHistory.length > 10) {
+            session.chatHistory.shift();
+        }
+        return update(userId, { chatHistory: session.chatHistory });
     },
 
     /**
@@ -246,6 +260,13 @@ export const sessionMemory = {
 
         // Avoid learning from message during guided state machine to prevent parsing errors
         if (session.discoveryStep !== null) return session;
+
+        // Append user query to chat history
+        session.chatHistory = session.chatHistory || [];
+        session.chatHistory.push({ role: 'user', text: message });
+        if (session.chatHistory.length > 10) {
+            session.chatHistory.shift();
+        }
 
         const extracted = extractContextFromMessage(message);
 

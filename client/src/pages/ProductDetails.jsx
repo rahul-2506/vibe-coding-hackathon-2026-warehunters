@@ -158,7 +158,7 @@ const ProductDetails = () => {
                     emoji: reviewEmoji,
                     source: reviewSource,
                     mentioned_ingredients: reviewIngredients,
-                    user_id: currentUserId,
+                    user_id: currentUser ? currentUserId : null,
                     experience_mood: reviewMood,
                     highlight_categories: highlightCategories,
                     recommendation: recommendation,
@@ -772,14 +772,13 @@ const ProductDetails = () => {
                     {/* RIGHT PANEL: LIVE REVIEW FEED */}
                     <div className="reviews-feed">
                         {/* Compact Review Form */}
-                        {currentUser && currentUser.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
-                                {/* Review Challenge Form Card */}
-                                <div className="details-review-card glass-panel review-form-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)' }}>
-                                    <h3 className="text-sm font-bold tracking-wider uppercase mb-4" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 0, color: 'var(--accent-color)' }}>
-                                        <MessageCircle size={18} />
-                                        🎭 The AI Review Challenge
-                                    </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+                            {/* Review Challenge Form Card */}
+                            <div className="details-review-card glass-panel review-form-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)' }}>
+                                <h3 className="text-sm font-bold tracking-wider uppercase mb-4" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 0, color: 'var(--accent-color)' }}>
+                                    <MessageCircle size={18} />
+                                    🎭 The AI Review Challenge {!currentUser && <span style={{ fontSize: '0.75rem', textTransform: 'none', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.6rem', borderRadius: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>Posting as Guest</span>}
+                                </h3>
                                     
                                     <form onSubmit={handleReviewSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         
@@ -1086,13 +1085,6 @@ const ProductDetails = () => {
                                     </div>
                                 )}
                             </div>
-                        ) : (
-                            <div className="details-review-card glass-panel" style={{ marginBottom: '2rem', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', textAlign: 'center' }}>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                    🔒 Log in to submit a verified purchase review for this product.
-                                </p>
-                            </div>
-                        )}
 
                         {activeReviews.length > 0 ? (
                             activeReviews.map((f) => {

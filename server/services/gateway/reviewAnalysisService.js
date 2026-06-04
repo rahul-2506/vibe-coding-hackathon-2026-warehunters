@@ -99,8 +99,13 @@ export const reviewAnalysisService = {
         const delta = detectorResult.verdict === 'GENUINE' ? 5 : (detectorResult.verdict === 'LIKELY_FAKE' ? -10 : 0);
         const newReputation = Math.max(0, Math.min(100, prevReputation + delta));
 
+        let trustScore = detectorResult.authenticityScore;
+        if (payload.image_url && payload.image_url.trim().length > 0) {
+            trustScore = Math.min(100, trustScore + 5);
+        }
+
         return {
-            trust_score: detectorResult.authenticityScore,
+            trust_score: trustScore,
             classification: detectorResult.verdict,
             ml_explanation: detectorResult.explanation,
             ai_confidence: detectorResult.reviewConfidence,

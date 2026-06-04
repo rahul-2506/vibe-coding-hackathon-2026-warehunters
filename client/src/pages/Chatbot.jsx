@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Bot, Send, User, Sparkles, Mic, MicOff,
     Search, GitCompare, Leaf, Calendar,
-    Star, Shield, ChevronRight, Sparkle, RefreshCw, Eye, HelpCircle, Settings, Square
+    Star, Shield, ChevronRight, Sparkle, RefreshCw, Eye, HelpCircle, Settings, Square,
+    Copy, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { API_BASE_URL } from '../config/api';
@@ -387,6 +388,7 @@ const Chatbot = () => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [thoughtStage, setThoughtStage] = useState('');
     
     // API Keys Settings state
     const [showSettings, setShowSettings] = useState(false);
@@ -395,6 +397,40 @@ const Chatbot = () => {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const recognitionRef = useRef(null);
+
+    // Diagnostics Panel state and probe hook
+    const [diagnostics, setDiagnostics] = useState({
+        backend: null,
+        ai: null,
+        supabase: null
+    });
+
+    const runDiagnostics = async () => {
+        try {
+            console.log(`[Diagnostic] Outgoing health probe to: ${API_BASE_URL}/api/health`);
+            const res = await fetch(`${API_BASE_URL}/api/health`);
+            const data = await res.json();
+            console.log(`[Diagnostic] Probe receipt:`, data);
+            setDiagnostics({
+                backend: data.backend ? 'Yes' : 'No',
+                ai: data.ai_service ? 'Yes' : 'No',
+                supabase: data.database ? 'Yes' : 'No'
+            });
+        } catch (err) {
+            console.error(`[Diagnostic] Probe failed:`, err);
+            setDiagnostics({
+                backend: 'No',
+                ai: 'No',
+                supabase: 'No'
+            });
+        }
+    };
+
+    useEffect(() => {
+        runDiagnostics();
+        const interval = setInterval(runDiagnostics, 15000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Set up speech recognition
     useEffect(() => {
@@ -530,6 +566,16 @@ const Chatbot = () => {
             };
             setMessages(prev => [...prev, initialAiMessage]);
 
+            console.log(`[VChat Client] Outgoing request to ${API_BASE_URL}/api/ai/chat/stream`, {
+                enhancedMessage,
+                clientSkinType,
+                clientConcerns,
+                clientBudget,
+                hasAuthHeader: !!token,
+                hasGeminiHeader: !!savedGeminiKey,
+                hasOpenaiHeader: !!savedOpenaiKey
+            });
+
             const res = await fetch(`${API_BASE_URL}/api/ai/chat/stream`, {
                 method: 'POST',
                 headers,
@@ -544,7 +590,11 @@ const Chatbot = () => {
                 signal: abortController.signal
             });
 
-            if (!res.ok) throw new Error(`API returned ${res.status}`);
+            if (!res.ok) {
+                console.error(`[VChat Client] Request failed with status ${res.status}`);
+                throw new Error(`API returned ${res.status}`);
+            }
+            console.log(`[VChat Client] Connection established, receiving stream...`);
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder('utf-8');
@@ -567,7 +617,10 @@ const Chatbot = () => {
                                 const dataStr = trimmedLine.slice(6);
                                 if (dataStr === '[DONE]') continue;
                                 const parsed = JSON.parse(dataStr);
-                                if (parsed.text) {
+                                if (parsed.status) {
+                                    setThoughtStage(parsed.status);
+                                } else if (parsed.text) {
+                                    setThoughtStage('');
                                     fullText += parsed.text;
                                     setMessages(prev => {
                                         const updated = [...prev];
@@ -606,7 +659,7 @@ const Chatbot = () => {
             if (err.name === 'AbortError') {
                 return;
             }
-            console.error('[VChat] Error:', err);
+            console.error('[VChat Client] Error:', err);
             setMessages(prev => [...prev, {
                 role: 'ai',
                 text: `⚠️ **Connection Error**\n\nI couldn't reach the AI service right now. Please check your connection and try again.\n\n*Error: ${err.message}*`,
@@ -698,6 +751,45 @@ const Chatbot = () => {
                 </div>
             </div>
 
+            {/* SLEEK DIAGNOSTIC PANEL (Required) */}
+            <div className="vchat-diagnostics-panel" style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '0.6rem 1.2rem',
+                margin: '0.5rem 1.25rem 0.25rem 1.25rem',
+                borderRadius: '8px',
+                background: 'rgba(30, 41, 59, 0.45)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '0.75rem',
+                color: '#94a3b8',
+                backdropFilter: 'blur(10px)'
+            }}>
+                <span style={{ fontWeight: 600, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Diagnostics:</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    Backend Connected: 
+                    <strong style={{ color: diagnostics.backend === 'Yes' ? '#10b981' : diagnostics.backend === 'No' ? '#ef4444' : '#fbbf24' }}>
+                        {diagnostics.backend || 'Checking...'}
+                    </strong>
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    AI Connected: 
+                    <strong style={{ color: diagnostics.ai === 'Yes' ? '#10b981' : diagnostics.ai === 'No' ? '#ef4444' : '#fbbf24' }}>
+                        {diagnostics.ai || 'Checking...'}
+                    </strong>
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    Supabase Connected: 
+                    <strong style={{ color: diagnostics.supabase === 'Yes' ? '#10b981' : diagnostics.supabase === 'No' ? '#ef4444' : '#fbbf24' }}>
+                        {diagnostics.supabase || 'Checking...'}
+                    </strong>
+                </span>
+            </div>
+
             {/* Quick Action Chips (Phase 10) */}
             <div className="vchat-caps">
                 {QUICK_ACTIONS.map((c, i) => (
@@ -732,13 +824,56 @@ const Chatbot = () => {
                             </div>
 
                             {msg.role === 'ai' ? (
-                                <RichMessage
-                                    msg={msg}
-                                    onProductCompare={handleProductCompare}
-                                    onProductClick={handleProductClick}
-                                    onSuggestionClick={handleSuggestion}
-                                    onProductTrust={handleProductTrust}
-                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                                    <RichMessage
+                                        msg={msg}
+                                        onProductCompare={handleProductCompare}
+                                        onProductClick={handleProductClick}
+                                        onSuggestionClick={handleSuggestion}
+                                        onProductTrust={handleProductTrust}
+                                    />
+                                    {msg.text && (
+                                        <div className="vchat-message-actions" style={{
+                                            display: 'flex',
+                                            gap: '0.75rem',
+                                            marginLeft: '1.25rem',
+                                            marginTop: '0.25rem',
+                                            fontSize: '0.75rem',
+                                            color: '#64748b',
+                                            alignItems: 'center'
+                                        }}>
+                                            <button
+                                                onClick={() => navigator.clipboard.writeText(msg.text)}
+                                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                title="Copy message text"
+                                            >
+                                                <Copy size={11} /> Copy
+                                            </button>
+                                            <button
+                                                onClick={() => sendMessage(lastUserMessage)}
+                                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                title="Regenerate this response"
+                                                disabled={loading}
+                                            >
+                                                <RefreshCw size={11} /> Regenerate
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.currentTarget.style.color = '#10b981'; }}
+                                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                title="Like this response"
+                                            >
+                                                <ThumbsUp size={11} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                                                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                title="Dislike this response"
+                                            >
+                                                <ThumbsDown size={11} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div className="vchat-bubble">{msg.text}</div>
                             )}
@@ -749,7 +884,12 @@ const Chatbot = () => {
                     {loading && messages.length > 0 && messages[messages.length - 1].role === 'ai' && !messages[messages.length - 1].text && (
                         <div className="vchat-msg-row ai">
                             <div className="vchat-avatar ai-avatar"><Bot size={16} /></div>
-                            <div className="vchat-bubble">
+                            <div className="vchat-bubble" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                {thoughtStage && (
+                                    <div className="vchat-thought-status" style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>
+                                        {thoughtStage}
+                                    </div>
+                                )}
                                 <div className="vchat-typing">
                                     <div className="vchat-dot" />
                                     <div className="vchat-dot" />

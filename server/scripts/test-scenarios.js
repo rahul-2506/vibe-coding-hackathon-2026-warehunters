@@ -209,6 +209,13 @@ async function runTests() {
         const result4a = await feedbackService.submitFeedback(payload4a);
         console.log('Without Image - Trust Score:', result4a.trust_score);
 
+        // Delete the temporary review to prevent duplicate check triggering on the next submission
+        console.log('🧹 Cleaning up first review text to prevent duplicate penalty on the next step...');
+        await supabase
+            .from('reviews')
+            .delete()
+            .eq('review_text', payload4a.review_text);
+
         const payload4b = {
             ...payload4a,
             image_url: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc' // With image

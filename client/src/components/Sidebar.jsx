@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Home, Package, MessageSquare, LogIn, LogOut, Sun, Moon, User, Bot, Bell, Terminal, Leaf } from 'lucide-react';
+import { Home, Package, MessageSquare, LogIn, LogOut, Sun, Moon, User, Bot, Bell, Terminal, Leaf, Settings } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 const Sidebar = ({ theme, toggleTheme, user, onLogout }) => {
@@ -54,6 +54,10 @@ const Sidebar = ({ theme, toggleTheme, user, onLogout }) => {
                         <span>Profile</span>
                     </NavLink>
                 )}
+                <NavLink to="/admin" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    <Settings size={20} />
+                    <span>Admin</span>
+                </NavLink>
                 {/* Hackathon Playbook button */}
                 <button 
                     onClick={() => window.dispatchEvent(new CustomEvent('toggle-hackathon-playbook'))}

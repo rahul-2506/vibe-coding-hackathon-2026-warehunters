@@ -354,16 +354,37 @@ export const productService = {
                 }
             }
 
-            // 3. Load full catalog from Supabase
+            // 3. Load full catalog from Supabase via a paginated loop to bypass PostgREST limit of 1000
             console.log('[productService] Loading products from Supabase database...');
-            const { data: rows, error: selErr } = await supabase
-                .from('products')
-                .select('*')
-                .range(0, 1500); // Bypass standard 1000 row limits
+            let rows = [];
+            let from = 0;
+            let to = 999;
+            let finished = false;
+            
+            while (!finished) {
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('*')
+                    .range(from, to);
                 
-            if (selErr) {
-                throw selErr;
+                if (error) {
+                    console.error('[productService DB ERROR] Page fetch failed:', error.message);
+                    throw error;
+                }
+                
+                if (data && data.length > 0) {
+                    rows = rows.concat(data);
+                    if (data.length < 1000) {
+                        finished = true;
+                    } else {
+                        from += 1000;
+                        to += 1000;
+                    }
+                } else {
+                    finished = true;
+                }
             }
+            console.log(`[productService] Loaded ${rows.length} products total from database.`);
 
             if (rows && rows.length > 0) {
                 const products = rows.map(r => {
