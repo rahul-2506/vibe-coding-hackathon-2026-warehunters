@@ -9,6 +9,27 @@ import { productSearch } from '../src/tools/productSearch.js';
 import { logger } from '../utils/logger.js';
 import { memoryManager } from '../src/ai/memoryManager.js';
 
+function cleanQueryForMatching(query) {
+    if (!query) return '';
+    let q = query.toLowerCase().replace(/,/g, '');
+    
+    // Remove budget matches like "under 30000", "below 30000", "less than 30000"
+    q = q.replace(/under\s*\d+/gi, '');
+    q = q.replace(/below\s*\d+/gi, '');
+    q = q.replace(/less\s*than\s*\d+/gi, '');
+    q = q.replace(/above\s*\d+/gi, '');
+    q = q.replace(/greater\s*than\s*\d+/gi, '');
+    q = q.replace(/\b\d{4,}\b/g, ''); // Remove any 4+ digit number (prices like 30000)
+    
+    // Remove qualitative/stop words
+    const wordsToRemove = ['best', 'cheap', 'top', 'buy', 'shop', 'price', 'budget', 'under', 'below', 'above', 'less', 'than', 'greater', 'for'];
+    for (const w of wordsToRemove) {
+        q = q.replace(new RegExp('\\b' + w + '\\b', 'gi'), '');
+    }
+    
+    return q.replace(/\s+/g, ' ').trim();
+}
+
 export const productController = {
     async getAll(req, res, next) {
         try {
@@ -100,15 +121,28 @@ export const productController = {
     },
 
     /**
-     * Vector similarity search with ranking.
-     * Route: GET /api/products/search?q=...&category=...&budget=...
+     * Vector similarity search with ranking and cursor-based pagination.
+     * Route: GET /api/products/search?q=...&category=...&budget=...&cursor=...&limit=...
      */
     async search(req, res, next) {
         try {
-            const { q, category, budget, limit } = req.query;
-            const searchLimit = Number(limit) || 12;
+            const { q, category, subcategory, budget, limit, cursor, brand, marketplace, priceMin, priceMax } = req.query;
+            
+            const limitVal = Number(limit) || 20;
+            const cursorVal = Number(cursor) || 0;
+            
+            logger.info(`[PRODUCT CONTROLLER] Searching products for query="${q}" in category="${category || 'all'}" cursor=${cursorVal} limit=${limitVal}`, 'PRODUCT_CONTROLLER');
 
-            logger.info(`[PRODUCT CONTROLLER] Searching products for query="${q}" in category="${category || 'all'}"`, 'PRODUCT_CONTROLLER');
+            // Extract budget from query q if not explicitly passed
+            let budgetVal = budget ? Number(budget) : null;
+            if (!budgetVal && q) {
+                const underMatch = q.match(/under\s*(\d+)/i);
+                if (underMatch) budgetVal = Number(underMatch[1]);
+                const belowMatch = q.match(/below\s*(\d+)/i);
+                if (belowMatch) budgetVal = Number(belowMatch[1]);
+                const lessThanMatch = q.match(/less\s*than\s*(\d+)/i);
+                if (lessThanMatch) budgetVal = Number(lessThanMatch[1]);
+            }
 
             // Save search to user preferences memory
             let userId = 'anonymous';
@@ -134,24 +168,45 @@ export const productController = {
                     .catch(err => logger.error(`[PRODUCT CONTROLLER] Failed to update user memory: ${err.message}`, 'PRODUCT_CONTROLLER'));
             }
 
+            // Load user preferences if logged in
+            let userPreferences = null;
+            if (userId && userId !== 'anonymous') {
+                try {
+                    const { data } = await supabase
+                        .from('user_preferences')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .single();
+                    if (data) {
+                        userPreferences = data;
+                    }
+                } catch (prefErr) {
+                    logger.warn(`[PRODUCT SEARCH] Failed to load user preferences: ${prefErr.message}`, 'PRODUCT_CONTROLLER');
+                }
+            }
+
             let results = [];
+            // We fetch up to 100 candidate items for ranking & pagination
+            const candidateLimit = 100;
             try {
                 results = await vectorSearchService.semanticSearch(
                     q || '',
                     category || null,
-                    budget ? Number(budget) : null,
-                    searchLimit
+                    budgetVal,
+                    candidateLimit,
+                    userPreferences
                 );
             } catch (err) {
                 logger.warn(`[PRODUCT CONTROLLER] Vector semantic search failed: ${err.message}. Proceeding to fallback.`, 'PRODUCT_CONTROLLER');
             }
 
             // If no local products found (or only low relevance/partial matches) and search query is provided, perform live retrieval
-            const qWords = q ? q.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
+            const cleanedQ = cleanQueryForMatching(q);
+            const qWords = cleanedQ ? cleanedQ.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
             const hasGoodMatch = results && results.length > 0 && results.some(p => {
                 const title = (p.title || p.name || '').toLowerCase();
                 const desc = (p.description || '').toLowerCase();
-                return qWords.every(word => title.includes(word) || desc.includes(word));
+                return qWords.length === 0 || qWords.every(word => title.includes(word) || desc.includes(word));
             });
 
             if ((!results || results.length === 0 || !hasGoodMatch) && q) {
@@ -163,7 +218,7 @@ export const productController = {
                 const liveRes = await productSearch.search({
                     query: q,
                     category: category || null,
-                    budget: budget ? Number(budget) : null
+                    budget: budgetVal
                 }, {
                     geminiKey,
                     groqKey
@@ -174,7 +229,100 @@ export const productController = {
                 }
             }
 
-            return response.success(res, results);
+            // Sync formats for frontend compatibility
+            results = results.map(p => ({
+                ...p,
+                name: p.title || p.name,
+                thumbnail: p.thumbnail || p.image_url || p.image || '',
+                image_url: p.image_url || p.thumbnail || p.image || '',
+                review_count: p.review_count || p.reviews_count || p.reviewCount || 0
+            }));
+
+            // Apply filter parameters
+            let filteredResults = [...results];
+
+            // 1. Category filter (strictly enforce category)
+            if (category && category !== 'All') {
+                const cLower = category.toLowerCase();
+                filteredResults = filteredResults.filter(p => (p.category || '').toLowerCase() === cLower);
+            }
+
+            // 1b. Subcategory filter
+            if (subcategory && subcategory !== 'All') {
+                const sLower = subcategory.toLowerCase();
+                filteredResults = filteredResults.filter(p => (p.subcategory || '').toLowerCase() === sLower);
+            }
+
+            // 2. Brand filter (supports comma-separated list)
+            if (brand) {
+                const brandsList = brand.toLowerCase().split(',').map(b => b.trim());
+                filteredResults = filteredResults.filter(p => brandsList.includes((p.brand || '').toLowerCase()));
+            }
+
+            // 3. Marketplace filter (supports comma-separated list)
+            if (marketplace) {
+                const marketplacesList = marketplace.toLowerCase().split(',').map(m => m.trim());
+                filteredResults = filteredResults.filter(p => 
+                    marketplacesList.includes((p.source || '').toLowerCase()) || 
+                    marketplacesList.includes((p.specifications?.Merchant || '').toLowerCase())
+                );
+            }
+
+            // 4. Price range filters
+            if (priceMin) {
+                const min = Number(priceMin);
+                filteredResults = filteredResults.filter(p => Number(p.price || 0) >= min);
+            }
+            const maxPriceVal = budgetVal ? Number(budgetVal) : (priceMax ? Number(priceMax) : null);
+            if (maxPriceVal) {
+                filteredResults = filteredResults.filter(p => Number(p.price || 0) <= maxPriceVal);
+            }
+
+            // 5. Rating filter
+            if (req.query.minRating) {
+                const minRatingVal = Number(req.query.minRating);
+                filteredResults = filteredResults.filter(p => Number(p.rating || 0) >= minRatingVal);
+            }
+
+            // 6. Trust score filter
+            if (req.query.minTrustScore) {
+                const minTrustScoreVal = Number(req.query.minTrustScore);
+                filteredResults = filteredResults.filter(p => Number(p.trust_score || 80) >= minTrustScoreVal);
+            }
+
+            // 7. Stock availability filter
+            if (req.query.onlyInStock === 'true') {
+                filteredResults = filteredResults.filter(p => p.availability === 'In Stock');
+            }
+
+            // Apply sorting before pagination slice
+            const sortType = req.query.sort || 'trust_score';
+            filteredResults.sort((a, b) => {
+                if (sortType === 'trust_score') {
+                    return (b.trust_score || 80) - (a.trust_score || 80);
+                }
+                if (sortType === 'rating') {
+                    return b.rating - a.rating;
+                }
+                if (sortType === 'price_asc') {
+                    return a.price - b.price;
+                }
+                if (sortType === 'price_desc') {
+                    return b.price - a.price;
+                }
+                return 0;
+            });
+
+            // Paginate results using cursor offset
+            const pageProducts = filteredResults.slice(cursorVal, cursorVal + limitVal);
+            const hasMore = cursorVal + limitVal < filteredResults.length;
+            const nextCursor = hasMore ? cursorVal + limitVal : null;
+
+            return response.success(res, {
+                products: pageProducts,
+                nextCursor,
+                totalEstimate: filteredResults.length
+            });
         } catch (err) {
             next(err);
         }
@@ -391,6 +539,180 @@ Return ONLY valid JSON.`;
 
             if (error) throw error;
             return response.success(res, null, 'Embedding generated successfully');
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async logEvent(req, res, next) {
+        try {
+            const { productId, eventType, metadata } = req.body;
+            if (!eventType) {
+                return response.error(res, 'Event type is required', null, 400);
+            }
+
+            let userId = null;
+            const authHeader = req.headers.authorization;
+            if (authHeader) {
+                const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+                if (token) {
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser(token);
+                        if (user) {
+                            userId = user.id;
+                        }
+                    } catch (err) {
+                        logger.warn(`[PRODUCT EVENT] Failed to verify auth token: ${err.message}`, 'PRODUCT_CONTROLLER');
+                    }
+                }
+            }
+
+            const { data, error } = await supabase
+                .from('user_product_events')
+                .insert({
+                    user_id: userId,
+                    product_id: productId ? Number(productId) : null,
+                    event_type: eventType,
+                    metadata: metadata || {},
+                    created_at: new Date().toISOString()
+                })
+                .select();
+
+            if (error) {
+                logger.error(`[PRODUCT EVENT ERROR] Failed to insert event: ${error.message}`, 'PRODUCT_CONTROLLER');
+                throw error;
+            }
+
+            // Update user_preferences / memory dynamically
+            if (userId && productId) {
+                const product = await productService.getProductById(productId);
+                if (product) {
+                    const { data: existingPrefs } = await supabase
+                        .from('user_preferences')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .single();
+
+                    const prefs = existingPrefs || {
+                        user_id: userId,
+                        skin_type: 'normal',
+                        budget: 1500,
+                        concerns: [],
+                        preferred_brands: [],
+                        disliked_ingredients: [],
+                        product_interests: []
+                    };
+
+                    if (product.brand && !prefs.preferred_brands.includes(product.brand)) {
+                        prefs.preferred_brands.push(product.brand);
+                    }
+
+                    const interests = Array.isArray(prefs.product_interests) ? prefs.product_interests : [];
+                    if (!interests.includes(productId)) {
+                        interests.push(productId);
+                        prefs.product_interests = interests;
+                    }
+
+                    await supabase
+                        .from('user_preferences')
+                        .upsert({
+                            ...prefs,
+                            updated_at: new Date().toISOString()
+                        });
+                }
+            }
+
+            return response.success(res, data ? data[0] : null, 'Product event logged successfully');
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async getPreferences(req, res, next) {
+        try {
+            let userId = null;
+            const authHeader = req.headers.authorization;
+            if (authHeader) {
+                const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+                if (token) {
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser(token);
+                        if (user) userId = user.id;
+                    } catch (e) {}
+                }
+            }
+
+            if (!userId) {
+                return response.success(res, {
+                    skin_type: 'normal',
+                    budget: 1500,
+                    concerns: [],
+                    preferred_brands: [],
+                    disliked_ingredients: [],
+                    product_interests: []
+                });
+            }
+
+            const { data, error } = await supabase
+                .from('user_preferences')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
+            if (error && error.code !== 'PGRST116') {
+                throw error;
+            }
+
+            return response.success(res, data || {
+                user_id: userId,
+                skin_type: 'normal',
+                budget: 1500,
+                concerns: [],
+                preferred_brands: [],
+                disliked_ingredients: [],
+                product_interests: []
+            });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async updatePreferences(req, res, next) {
+        try {
+            let userId = null;
+            const authHeader = req.headers.authorization;
+            if (authHeader) {
+                const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+                if (token) {
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser(token);
+                        if (user) userId = user.id;
+                    } catch (e) {}
+                }
+            }
+
+            if (!userId) {
+                return response.error(res, 'Authentication required to update preferences', null, 401);
+            }
+
+            const { skin_type, budget, concerns, preferred_brands, disliked_ingredients } = req.body;
+
+            const { data, error } = await supabase
+                .from('user_preferences')
+                .upsert({
+                    user_id: userId,
+                    skin_type: skin_type || 'normal',
+                    budget: budget ? Number(budget) : 1500,
+                    concerns: concerns || [],
+                    preferred_brands: preferred_brands || [],
+                    disliked_ingredients: disliked_ingredients || [],
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return response.success(res, data, 'Preferences updated successfully');
         } catch (err) {
             next(err);
         }

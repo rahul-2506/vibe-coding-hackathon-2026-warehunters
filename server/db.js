@@ -22,6 +22,14 @@ if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder.supaba
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const supabaseAdmin = serviceKey ? createClient(supabaseUrl, serviceKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false
+    }
+}) : supabase;
+
 const db = {
     supabase,
     

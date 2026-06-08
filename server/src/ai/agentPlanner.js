@@ -31,19 +31,27 @@ export const agentPlanner = {
             case 'PRODUCT_SEARCH':
             case 'PRODUCT_RECOMMENDATION':
                 plan.goal = 'discover and recommend catalog products';
-                plan.information_needed = ['skin_type', 'concern', 'budget'];
+                const targetCategory = activeEntities.category || 'Skincare & Beauty';
+                
+                if (targetCategory === 'Skincare & Beauty' || targetCategory === 'Skincare') {
+                    plan.information_needed = ['skin_type', 'concern', 'budget'];
+                    // Check if we have these parameters in entities or memory
+                    const currentSkinType = activeEntities.skin_type || activeMemory.skin_type;
+                    const currentConcern = activeEntities.concern || (activeMemory.concerns && activeMemory.concerns[0]);
+                    
+                    if (!currentSkinType) {
+                        plan.missing_information.push('skin_type');
+                    }
+                    if (!currentConcern) {
+                        plan.missing_information.push('concern');
+                    }
+                } else {
+                    plan.information_needed = ['category', 'budget', 'specifications'];
+                    if (!activeEntities.product_a && !activeEntities.brand && !activeEntities.category) {
+                        plan.missing_information.push('category');
+                    }
+                }
                 plan.tools_to_use = ['productSearch'];
-                
-                // Check if we have these parameters in entities or memory
-                const currentSkinType = activeEntities.skin_type || activeMemory.skin_type;
-                const currentConcern = activeEntities.concern || (activeMemory.concerns && activeMemory.concerns[0]);
-                
-                if (!currentSkinType) {
-                    plan.missing_information.push('skin_type');
-                }
-                if (!currentConcern) {
-                    plan.missing_information.push('concern');
-                }
                 break;
 
             case 'COMPARE':

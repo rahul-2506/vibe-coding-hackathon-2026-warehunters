@@ -59,6 +59,17 @@ const IngredientScanner = () => {
         setLoading(true);
         setReport(null);
 
+        const geminiKey = localStorage.getItem('x-gemini-key') || 
+                          localStorage.getItem('gemini_api_key') || 
+                          import.meta.env.VITE_GEMINI_API_KEY || 
+                          '';
+
+        if (!geminiKey) {
+            alert("Gemini API Key is missing. Please save your API Key in the Chatbot or Admin Panel first.");
+            setLoading(false);
+            return;
+        }
+
         try {
             // Read image as base64
             const reader = new FileReader();
@@ -66,27 +77,91 @@ const IngredientScanner = () => {
             reader.onloadend = async () => {
                 const base64Data = reader.result;
 
-                const { data: { session } } = await supabase.auth.getSession();
-                const token = session?.access_token;
-                const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                const res = await fetch(`${API_BASE_URL}/api/ai/scan-ingredients`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ image: base64Data })
-                });
-
-                if (!res.ok) {
-                    throw new Error(`Server returned ${res.status}`);
+                let mimeType = 'image/jpeg';
+                let cleanBase64 = base64Data;
+                if (base64Data.startsWith('data:')) {
+                    const match = base64Data.match(/^data:([^;]+);base64,(.*)$/);
+                    if (match) {
+                        mimeType = match[1];
+                        cleanBase64 = match[2];
+                    }
                 }
 
-                const json = await res.json();
-                if (json.success && json.data) {
-                    setReport(json.data);
-                    
-                    // Match products locally based on keywords in extractedText
-                    const text = (json.data.extractedText || '').toLowerCase();
+                try {
+                    const prompt = "Look at this product label image. \nExtract all ingredients and return ONLY a JSON array:\n[\n  {\n    name: ingredient name,\n    description: one line description,\n    benefits: [benefit1, benefit2]\n  }\n]\nNo extra text, only JSON.";
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                    let res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [
+                                    { text: prompt },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: cleanBase64
+                                        }
+                                    }
+                                ]
+                            }],
+                            generationConfig: {
+                                responseMimeType: "application/json"
+                            }
+                        })
+                    });
+
+                    if (res.status === 404) {
+                        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`;
+                        res = await fetch(fallbackUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{
+                                    parts: [
+                                        { text: prompt },
+                                        {
+                                            inlineData: {
+                                                mimeType: mimeType,
+                                                data: cleanBase64
+                                            }
+                                        }
+                                    ]
+                                }],
+                                generationConfig: {
+                                    responseMimeType: "application/json"
+                                }
+                            })
+                        });
+                    }
+
+                    if (!res.ok) {
+                        throw new Error(`Gemini API returned status ${res.status}`);
+                    }
+
+                    const json = await res.json();
+                    const textResponse = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!textResponse) {
+                        throw new Error("Empty response from Gemini model");
+                    }
+
+                    let cleanText = textResponse.trim();
+                    if (cleanText.startsWith('```json')) {
+                        cleanText = cleanText.substring(7);
+                    } else if (cleanText.startsWith('```')) {
+                        cleanText = cleanText.substring(3);
+                    }
+                    if (cleanText.endsWith('```')) {
+                        cleanText = cleanText.substring(0, cleanText.length - 3);
+                    }
+                    cleanText = cleanText.trim();
+
+                    const parsedReport = JSON.parse(cleanText);
+                    setReport(parsedReport);
+
+                    // Match products locally based on keywords in extracted ingredients
+                    const text = parsedReport.map(item => item.name).join(', ').toLowerCase();
                     const matches = products.filter(p => {
                         const nameMatch = text.includes((p.name || p.title || '').toLowerCase());
                         const explanationMatch = text.includes((p.explanation || p.description || '').toLowerCase());
@@ -94,17 +169,18 @@ const IngredientScanner = () => {
                         return nameMatch || explanationMatch || activeIngredientMatch;
                     });
                     
-                    // Fallback to top matches if no exact match
                     if (matches.length > 0) {
                         setMatchedInventory(matches.slice(0, 3));
                     } else {
-                        // Return first 3 skincare products as top alternatives
                         setMatchedInventory(products.slice(0, 3));
                     }
-                } else {
-                    throw new Error("Invalid response format");
+                    setLoading(false);
+
+                } catch (apiErr) {
+                    console.error("Gemini Scan Error:", apiErr);
+                    alert(`Scanning failed: ${apiErr.message}`);
+                    setLoading(false);
                 }
-                setLoading(false);
             };
         } catch (err) {
             console.error("Scanner Error:", err);
@@ -189,114 +265,52 @@ const IngredientScanner = () => {
 
                 {report && (
                     <div className="report-layout animate-fade-in">
-                        {/* Summary Metrics */}
-                        <div className="report-summary glassmorphic">
-                            <div className="score-widget">
-                                <div className="circular-meter">
-                                    <svg viewBox="0 0 36 36" className="circular-chart">
-                                        <path className="circle-bg"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                        />
-                                        <path className="circle"
-                                            strokeDasharray={`${report.safetyScore}, 100`}
-                                            stroke={getSafetyColor(report.safetyScore)}
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                        />
-                                    </svg>
-                                    <div className="score-percentage" style={{ color: getSafetyColor(report.safetyScore) }}>{report.safetyScore}</div>
-                                </div>
-                                <div className="score-meta">
-                                    <h3>Dermatological Safety Index</h3>
-                                    <p>Based on ingredient toxicology, allergen density, and barrier-disrupting chemicals found.</p>
-                                </div>
+                        {/* Scanned Image Preview & Reset Button */}
+                        <div className="report-summary glassmorphic" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: '700', textAlign: 'center', margin: 0 }}>Scanned Product Label</h3>
+                            <div className="preview-container" style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+                                <img src={previewUrl} alt="Scanned Label" className="label-preview" style={{ width: '100%', height: 'auto', maxHeight: '280px', objectFit: 'contain' }} />
                             </div>
-
-                            <hr className="divider" />
-
-                            <div className="risk-meters">
-                                <h3>Skin Sensitivity Profile</h3>
-                                <div className="risk-bar-container">
-                                    <div className="risk-header">
-                                        <span>Dry Skin Risk</span>
-                                        <span style={{ color: getRiskColor(report.risks?.dry || 0) }}>{report.risks?.dry || 0}%</span>
-                                    </div>
-                                    <div className="risk-bar-bg">
-                                        <div className="risk-bar-fill" style={{ width: `${report.risks?.dry || 0}%`, backgroundColor: getRiskColor(report.risks?.dry || 0) }} />
-                                    </div>
-                                </div>
-
-                                <div className="risk-bar-container">
-                                    <div className="risk-header">
-                                        <span>Acne / Comedogenic Risk</span>
-                                        <span style={{ color: getRiskColor(report.risks?.acne || 0) }}>{report.risks?.acne || 0}%</span>
-                                    </div>
-                                    <div className="risk-bar-bg">
-                                        <div className="risk-bar-fill" style={{ width: `${report.risks?.acne || 0}%`, backgroundColor: getRiskColor(report.risks?.acne || 0) }} />
-                                    </div>
-                                </div>
-
-                                <div className="risk-bar-container">
-                                    <div className="risk-header">
-                                        <span>Irritation / Allergen Risk</span>
-                                        <span style={{ color: getRiskColor(report.risks?.irritation || 0) }}>{report.risks?.irritation || 0}%</span>
-                                    </div>
-                                    <div className="risk-bar-bg">
-                                        <div className="risk-bar-fill" style={{ width: `${report.risks?.irritation || 0}%`, backgroundColor: getRiskColor(report.risks?.irritation || 0) }} />
-                                    </div>
-                                </div>
-                            </div>
+                            <button className="btn-secondary" onClick={triggerReset} style={{ width: '100%' }}>Scan Another Product</button>
                         </div>
 
                         {/* Detailed Analysis Tabs/Grids */}
                         <div className="report-details">
-                            {/* Flagged Ingredients */}
-                            <div className="detail-card flagged glassmorphic">
-                                <div className="card-header">
-                                    <AlertTriangle size={20} style={{ color: '#fbbf24' }} className="animate-pulse" />
-                                    <h3>Flagged Hazard Ingredients</h3>
-                                </div>
-                                {report.flaggedIngredients?.length > 0 ? (
-                                    <div className="ingredients-list">
-                                        {report.flaggedIngredients.map((item, idx) => (
-                                            <div key={idx} className="ingredient-item danger">
-                                                <div className="ing-title">
-                                                    <strong>{item.name}</strong>
-                                                    <span className="danger-badge">Alert</span>
-                                                </div>
-                                                <p className="ing-desc">{item.reason}</p>
-                                            </div>
-                                        ))}
+                            <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem', background: 'linear-gradient(135deg, var(--accent-color, #f43f5e) 0%, #a855f7 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', width: 'fit-content' }}>
+                                Extracted Ingredients ({report.length})
+                            </h3>
+                            
+                            {/* Ingredient Cards */}
+                            {report.map((item, idx) => (
+                                <div key={idx} className="detail-card glassmorphic animate-fade-in" style={{ animationDelay: `${idx * 0.1}s` }}>
+                                    <div className="card-header" style={{ marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+                                        <Sparkles size={20} style={{ color: '#a855f7' }} />
+                                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700' }}>{item.name}</h3>
                                     </div>
-                                ) : (
-                                    <p className="empty-message">🎉 No hazardous or highly comedogenic ingredients flagged!</p>
-                                )}
-                            </div>
-
-                            {/* Active Benefits */}
-                            <div className="detail-card benefits glassmorphic">
-                                <div className="card-header">
-                                    <CheckCircle size={20} style={{ color: '#10b981' }} />
-                                    <h3>Clinical Active Benefits</h3>
+                                    <p className="ing-desc" style={{ fontSize: '0.95rem', color: 'var(--text-main, #f8fafc)', marginBottom: '1rem', lineHeight: '1.5' }}>
+                                        {item.description}
+                                    </p>
+                                    {item.benefits && item.benefits.length > 0 && (
+                                        <div style={{ marginTop: '0.75rem' }}>
+                                            <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted, #94a3b8)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key Efficacy & Benefits</h4>
+                                            <ul className="benefits-list">
+                                                {item.benefits.map((benefit, bIdx) => (
+                                                    <li key={bIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                                        <Leaf size={14} className="leaf-bullet" style={{ marginTop: '0.25rem' }} />
+                                                        <span>{benefit}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
-                                {report.benefits?.length > 0 ? (
-                                    <ul className="benefits-list">
-                                        {report.benefits.map((benefit, idx) => (
-                                            <li key={idx}>
-                                                <Leaf size={14} className="leaf-bullet" />
-                                                <span>{benefit}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="empty-message">No specific clinical active benefits identified.</p>
-                                )}
-                            </div>
+                            ))}
 
                             {/* Catalog Matches */}
                             <div className="detail-card matching glassmorphic">
                                 <div className="card-header">
                                     <Shield size={20} style={{ color: '#3b82f6' }} />
-                                    <h3>Recommended Safe Inventory Alternatives</h3>
+                                    <h3>Recommended Safe Alternatives</h3>
                                 </div>
                                 <div className="matching-grid">
                                     {matchedInventory.map((item) => (
@@ -315,10 +329,6 @@ const IngredientScanner = () => {
                                     ))}
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="scan-controls-footer">
-                            <button className="btn-secondary" onClick={triggerReset}>Scan Another Product</button>
                         </div>
                     </div>
                 )}

@@ -44,25 +44,20 @@ export const embeddingService = {
         // 2. Try Gemini if key is available
         if (apiKeyGemini && !apiKeyGemini.startsWith('gsk_')) {
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKeyGemini}`;
+                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-embedding-2:embedContent?key=${apiKeyGemini}`;
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        content: { parts: [{ text }] }
+                        content: { parts: [{ text }] },
+                        outputDimensionality: 1536
                     })
                 });
 
                 if (res.ok) {
                     const json = await res.json();
                     if (json.embedding && json.embedding.values) {
-                        const values = json.embedding.values;
-                        // Pad 768-dimensional Gemini embedding to 1536 dimensions
-                        const padded = new Array(1536).fill(0);
-                        for (let i = 0; i < Math.min(values.length, 1536); i++) {
-                            padded[i] = values[i];
-                        }
-                        return padded;
+                        return json.embedding.values;
                     }
                 } else {
                     console.warn(`[Embedding Service] Gemini API returned status ${res.status}: ${await res.text()}`);
