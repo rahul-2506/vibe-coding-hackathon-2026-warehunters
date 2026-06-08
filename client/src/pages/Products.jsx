@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProductCardExt from '../components/ProductCardExt';
 import { 
@@ -10,7 +10,6 @@ import {
     X, 
     ShieldCheck, 
     Check, 
-    ChevronRight,
     RefreshCw
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
@@ -41,24 +40,36 @@ const getProductSubcategory = (p) => {
     return 'Others';
 };
 
+const CATEGORY_BRANDS = {
+    'All': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech', 'Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist', 'Nescafe', 'Tata', 'Oreo', 'Amul', 'Philips', 'Dyson', 'IKEA', 'Nike', 'Adidas', 'Levi\'s', 'Uniqlo', 'Moleskine', 'Hydro Flask', 'Manduka'],
+    'Skincare & Beauty': ['Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist'],
+    'Electronics': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech'],
+    'Groceries': ['Nescafe', 'Tata', 'Oreo', 'Amul'],
+    'Home & Living': ['Philips', 'Dyson', 'IKEA'],
+    'Fashion & Apparel': ['Nike', 'Adidas', 'Levi\'s', 'Uniqlo'],
+    'Others': ['Moleskine', 'Hydro Flask', 'Manduka']
+};
+
 const Products = () => {
     const navigate = useNavigate();
     
     // Core states
     const [products, setProducts] = useState([]);
-    const [visibleCount, setVisibleCount] = useState(24);
+    const [nextCursor, setNextCursor] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [isSearchingLive, setIsSearchingLive] = useState(false);
-    const [searchedQueries, setSearchedQueries] = useState(new Set());
+    const [totalEstimate, setTotalEstimate] = useState(0);
 
     // Filter states
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
     const [activeSubcategory, setActiveSubcategory] = useState('All');
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
     const [selectedBrands, setSelectedBrands] = useState([]);
+    const [selectedMerchants, setSelectedMerchants] = useState([]);
     const [minRating, setMinRating] = useState(0);
     const [minTrustScore, setMinTrustScore] = useState(0);
     const [onlyInStock, setOnlyInStock] = useState(false);
@@ -78,20 +89,57 @@ const Products = () => {
         'Others'
     ];
 
-    const fetchData = async () => {
-        setLoading(true);
+    // Debounce search query to prevent excessive API requests
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQuery(searchQuery);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    // Fetch Products with pagination
+    const fetchProducts = useCallback(async (cursorVal = 0, isInitial = false) => {
+        if (isInitial) {
+            setLoading(true);
+        }
         setError('');
         try {
-            // Fetch Products
-            const prodRes = await fetch(`${API_BASE_URL}/api/products/getProducts`);
-            if (!prodRes.ok) throw new Error('Failed to fetch from DB');
-            const resJson = await prodRes.json();
-            const raw = resJson.data || resJson.products || resJson;
-            const prodData = Array.isArray(raw) ? raw : (Array.isArray(raw?.products) ? raw.products : []);
+            const geminiKey = localStorage.getItem('gemini_api_key') || '';
+            const groqKey = localStorage.getItem('groq_api_key') || '';
+
+            const params = new URLSearchParams();
+            if (debouncedQuery) params.append('q', debouncedQuery);
+            if (activeCategory !== 'All') params.append('category', activeCategory);
+            if (activeCategory === 'Skincare & Beauty' && activeSubcategory !== 'All') {
+                params.append('subcategory', activeSubcategory);
+            }
+            if (minPrice) params.append('priceMin', minPrice);
+            if (maxPrice) params.append('priceMax', maxPrice);
+            if (selectedBrands.length > 0) params.append('brand', selectedBrands.join(','));
+            if (selectedMerchants.length > 0) params.append('marketplace', selectedMerchants.join(','));
+            if (minRating > 0) params.append('minRating', String(minRating));
+            if (minTrustScore > 0) params.append('minTrustScore', String(minTrustScore));
+            if (onlyInStock) params.append('onlyInStock', 'true');
+            if (sortType) params.append('sort', sortType);
             
-            // Double safety sanitization on client side for image URLs
-            const sanitizedData = prodData.map(p => {
-                let img = p.image_url || p.thumbnail || '';
+            params.append('limit', '20');
+            params.append('cursor', String(cursorVal));
+
+            const url = `${API_BASE_URL}/api/products/search?${params.toString()}`;
+            const res = await fetch(url, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(geminiKey && { 'x-gemini-key': geminiKey }),
+                    ...(groqKey && { 'x-groq-key': groqKey })
+                }
+            });
+
+            if (!res.ok) throw new Error('Failed to fetch from DB');
+            const resJson = await res.json();
+            const { products: fetchedList, nextCursor: newCursor, totalEstimate: totalEst } = resJson.data || {};
+            
+            const sanitized = (fetchedList || []).map(p => {
+                let img = p.image_url || p.thumbnail || p.image || '';
                 if (img && img.includes('cdn.dummyjson.com/product-images/')) {
                     img = img.replace('cdn.dummyjson.com/product-images/', 'cdn.dummyjson.com/products/images/');
                 }
@@ -103,50 +151,58 @@ const Products = () => {
                 };
             });
 
-            setProducts(sanitizedData);
+            setProducts(prev => isInitial ? sanitized : [...prev, ...sanitized]);
+            setNextCursor(newCursor);
+            setHasMore(newCursor !== null && newCursor !== undefined);
+            setTotalEstimate(totalEst || 0);
         } catch (err) {
             console.error("Error loading products catalog:", err);
             setError("Unable to load products");
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    // Reset visible count when filters are updated to maintain page 1 view
-    useEffect(() => {
-        setVisibleCount(24);
     }, [
+        debouncedQuery,
         activeCategory,
         activeSubcategory,
-        searchQuery,
         minPrice,
         maxPrice,
         selectedBrands,
+        selectedMerchants,
         minRating,
         minTrustScore,
         onlyInStock,
         sortType
     ]);
 
-    // Get list of all brands based on category
-    const brands = [...new Set(products
-        .filter(p => activeCategory === 'All' || p.category === activeCategory)
-        .map(p => p.brand)
-        .filter(Boolean)
-    )].sort();
+    // Reset list and fetch page 1 whenever filters change
+    useEffect(() => {
+        fetchProducts(0, true);
+    }, [
+        debouncedQuery,
+        activeCategory,
+        activeSubcategory,
+        minPrice,
+        maxPrice,
+        selectedBrands,
+        selectedMerchants,
+        minRating,
+        minTrustScore,
+        onlyInStock,
+        sortType,
+        fetchProducts
+    ]);
 
     // Reset all filters
     const handleClearAll = () => {
         setSearchQuery('');
+        setDebouncedQuery('');
         setActiveCategory('All');
         setActiveSubcategory('All');
         setMinPrice('');
         setMaxPrice('');
         setSelectedBrands([]);
+        setSelectedMerchants([]);
         setMinRating(0);
         setMinTrustScore(0);
         setOnlyInStock(false);
@@ -162,141 +218,14 @@ const Products = () => {
         }
     };
 
-    // Filter Logic
-    const filteredProducts = products.filter(p => {
-        // 1. Category filter
-        if (activeCategory !== 'All' && p.category !== activeCategory) {
-            return false;
-        }
-
-        // 1b. Subcategory filter for Skincare & Beauty
-        if (activeCategory === 'Skincare & Beauty' && activeSubcategory !== 'All') {
-            const prodSubcat = p.subcategory || getProductSubcategory(p);
-            if (prodSubcat !== activeSubcategory) {
-                return false;
-            }
-        }
-
-        // 2. Search query filter
-        if (searchQuery) {
-            const qWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-            const matchesWords = qWords.every(word => {
-                const matchesTitle = p.title?.toLowerCase().includes(word) || p.name?.toLowerCase().includes(word);
-                const matchesBrand = p.brand?.toLowerCase().includes(word);
-                const matchesDesc = p.description?.toLowerCase().includes(word);
-                const matchesCategory = p.category?.toLowerCase().includes(word);
-                const matchesKeywords = Array.isArray(p.keywords) && p.keywords.some(k => k.toLowerCase().includes(word));
-                return matchesTitle || matchesBrand || matchesDesc || matchesCategory || matchesKeywords;
-            });
-            
-            if (!matchesWords) {
-                return false;
-            }
-        }
-
-        // 3. Price filters
-        if (minPrice && p.price < Number(minPrice)) return false;
-        if (maxPrice && p.price > Number(maxPrice)) return false;
-
-        // 4. Brand filters
-        if (selectedBrands.length > 0 && !selectedBrands.includes(p.brand)) return false;
-
-        // 5. Rating filters
-        if (minRating && p.rating < Number(minRating)) return false;
-
-        // 6. Trust score filters
-        if (minTrustScore && (p.trust_score || 80) < Number(minTrustScore)) return false;
-
-        // 7. Stock availability filters
-        if (onlyInStock && p.stock <= 0) return false;
-
-        return true;
-    });
-
-    // Sort Logic
-    const sortedProducts = [...filteredProducts].sort((a, b) => {
-        if (sortType === 'trust_score') {
-            return (b.trust_score || 80) - (a.trust_score || 80);
-        }
-        if (sortType === 'rating') {
-            return b.rating - a.rating;
-        }
-        if (sortType === 'price_asc') {
-            return a.price - b.price;
-        }
-        if (sortType === 'price_desc') {
-            return b.price - a.price;
-        }
-        return 0;
-    });
-
-    const handleLiveSearch = async (query) => {
-        if (!query || query.trim() === '') return;
-        const q = query.trim().toLowerCase();
-        if (searchedQueries.has(q)) return;
-
-        setIsSearchingLive(true);
-        try {
-            const geminiKey = localStorage.getItem('gemini_api_key') || '';
-            const groqKey = localStorage.getItem('groq_api_key') || '';
-
-            const url = `${API_BASE_URL}/api/products/search?q=${encodeURIComponent(query)}`;
-            const res = await fetch(url, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(geminiKey && { 'x-gemini-key': geminiKey }),
-                    ...(groqKey && { 'x-groq-key': groqKey })
-                }
-            });
-
-            if (!res.ok) throw new Error('Live search request failed');
-            const dataJson = await res.json();
-            const liveProds = Array.isArray(dataJson) ? dataJson : (dataJson.data || []);
-
-            if (liveProds.length > 0) {
-                setProducts(prevProducts => {
-                    const merged = [...prevProducts];
-                    liveProds.forEach(np => {
-                        if (!merged.some(p => p.id === np.id || (p.title || '').toLowerCase() === (np.title || '').toLowerCase())) {
-                            let img = np.image_url || np.thumbnail || '';
-                            if (img && img.includes('cdn.dummyjson.com/product-images/')) {
-                                img = img.replace('cdn.dummyjson.com/product-images/', 'cdn.dummyjson.com/products/images/');
-                            }
-                            merged.push({
-                                ...np,
-                                name: np.title || np.name || 'Unknown Product',
-                                image_url: img,
-                                thumbnail: img
-                            });
-                        }
-                    });
-                    return merged;
-                });
-            }
-            
-            setSearchedQueries(prev => {
-                const updated = new Set(prev);
-                updated.add(q);
-                return updated;
-            });
-        } catch (err) {
-            console.error("Error during live search:", err);
-        } finally {
-            setIsSearchingLive(false);
+    // Toggle merchant in multi-select checklist
+    const handleMerchantToggle = (merchantName) => {
+        if (selectedMerchants.includes(merchantName)) {
+            setSelectedMerchants(selectedMerchants.filter(m => m !== merchantName));
+        } else {
+            setSelectedMerchants([...selectedMerchants, merchantName]);
         }
     };
-
-    useEffect(() => {
-        if (searchQuery && filteredProducts.length === 0) {
-            const q = searchQuery.trim().toLowerCase();
-            if (!searchedQueries.has(q) && !isSearchingLive) {
-                const timer = setTimeout(() => {
-                    handleLiveSearch(searchQuery);
-                }, 800);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [searchQuery, filteredProducts.length, searchedQueries, isSearchingLive]);
 
     // Navigation triggers
     const handleChat = (product) => {
@@ -311,11 +240,20 @@ const Products = () => {
         navigate('/chatbot', { state: { product, initialMessage: `Compare ${product.name} with similar products in the ${product.category} category.` } });
     };
 
-    // Calculate product count helper for each category badge
-    const getCategoryCount = (catName) => {
-        if (catName === 'All') return products.length;
-        return products.filter(p => p.category === catName).length;
-    };
+    // Intersection observer for infinite scroll
+    const observer = useRef();
+    const sentinelRef = useCallback(node => {
+        if (loading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore && nextCursor !== null && nextCursor !== undefined) {
+                fetchProducts(nextCursor, false);
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [loading, hasMore, nextCursor, fetchProducts]);
+
+    const brands = CATEGORY_BRANDS[activeCategory] || CATEGORY_BRANDS['All'];
 
     return (
         <div className="products-screen-container">
@@ -340,7 +278,7 @@ const Products = () => {
                 <div className="filter-group">
                     <h4 className="filter-title">Search</h4>
                     <div className="search-input-wrapper">
-                        {isSearchingLive ? (
+                        {loading && products.length === 0 ? (
                             <RefreshCw className="search-icon animate-spin text-accent" size={16} />
                         ) : (
                             <Search className="search-icon" size={16} />
@@ -350,17 +288,45 @@ const Products = () => {
                             placeholder="Search catalog..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    handleLiveSearch(searchQuery);
-                                }
-                            }}
                         />
                         {searchQuery && (
-                            <button className="search-clear" onClick={() => setSearchQuery('')}>
+                            <button className="search-clear" onClick={() => { setSearchQuery(''); setDebouncedQuery(''); }}>
                                 <X size={14} />
                             </button>
                         )}
+                    </div>
+                </div>
+
+                {/* Marketplace Filter */}
+                <div className="filter-group">
+                    <h4 className="filter-title">Marketplaces</h4>
+                    <div className="brand-checklist scroll-container" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                        {[
+                            'Internal Database',
+                            'Amazon',
+                            'Flipkart',
+                            'Myntra',
+                            'Nykaa',
+                            'Ajio',
+                            'Croma',
+                            'Reliance Digital'
+                        ].map(merchant => {
+                            const isChecked = selectedMerchants.includes(merchant);
+                            return (
+                                <label key={merchant} className="checkbox-label" style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isChecked}
+                                        onChange={() => handleMerchantToggle(merchant)}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <span className="custom-checkbox" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', marginRight: '8px', background: isChecked ? 'var(--accent-color)' : 'transparent' }}>
+                                        {isChecked && <Check size={10} color="#fff" />}
+                                    </span>
+                                    <span className="brand-text" style={{ fontSize: '0.85rem', color: '#fff' }}>{merchant === 'Internal Database' ? 'Internal Store' : merchant}</span>
+                                </label>
+                            );
+                        })}
                     </div>
                 </div>
 
@@ -369,7 +335,6 @@ const Products = () => {
                     <h4 className="filter-title">Departments</h4>
                     <ul className="category-list">
                         {categories.map(cat => {
-                            const count = getCategoryCount(cat);
                             const isSkincare = cat === 'Skincare & Beauty';
                             return (
                                 <React.Fragment key={cat}>
@@ -382,7 +347,6 @@ const Products = () => {
                                         }}
                                     >
                                         <span className="category-name">{cat}</span>
-                                        <span className="category-count">{count}</span>
                                     </li>
                                     
                                     {isSkincare && activeCategory === 'Skincare & Beauty' && (
@@ -397,10 +361,6 @@ const Products = () => {
                                                 { name: 'Masks & Scrubs', icon: '🎭' },
                                                 { name: 'Others', icon: '📦' }
                                             ].map(sub => {
-                                                const subCount = products.filter(p => 
-                                                    p.category === 'Skincare & Beauty' && 
-                                                    (sub.name === 'All' || (p.subcategory || getProductSubcategory(p)) === sub.name)
-                                                ).length;
                                                 return (
                                                     <li 
                                                         key={sub.name}
@@ -414,7 +374,6 @@ const Products = () => {
                                                             <span className="subcategory-icon">{sub.icon}</span>
                                                             <span className="subcategory-name">{sub.name}</span>
                                                         </span>
-                                                        <span className="subcategory-count">{subCount}</span>
                                                     </li>
                                                 );
                                             })}
@@ -428,7 +387,7 @@ const Products = () => {
 
                 {/* 3. Price Range Filter */}
                 <div className="filter-group">
-                    <h4 className="filter-title">Price Range ($)</h4>
+                    <h4 className="filter-title">Price Range (₹)</h4>
                     <div className="price-inputs">
                         <input 
                             type="number" 
@@ -445,9 +404,9 @@ const Products = () => {
                         />
                     </div>
                     <div className="price-presets">
-                        <button onClick={() => { setMinPrice(''); setMaxPrice('20'); }}>Under $20</button>
-                        <button onClick={() => { setMinPrice('20'); setMaxPrice('100'); }}>$20 to $100</button>
-                        <button onClick={() => { setMinPrice('100'); setMaxPrice(''); }}>Over $100</button>
+                        <button onClick={() => { setMinPrice(''); setMaxPrice('2000'); }}>Under ₹2,000</button>
+                        <button onClick={() => { setMinPrice('2000'); setMaxPrice('10000'); }}>₹2k to ₹10k</button>
+                        <button onClick={() => { setMinPrice('10000'); setMaxPrice(''); }}>Over ₹10k</button>
                     </div>
                 </div>
 
@@ -551,7 +510,7 @@ const Products = () => {
                             <SlidersHorizontal size={16} /> Filters
                         </button>
                         <span className="results-count">
-                            Explore Our Vetted Catalog
+                            {products.length > 0 ? `Showing ${products.length} of ${totalEstimate} vetted matches` : 'Explore Our Vetted Catalog'}
                         </span>
                     </div>
 
@@ -571,14 +530,8 @@ const Products = () => {
                     </div>
                 </header>
                 
-                {loading || (isSearchingLive && sortedProducts.length === 0) ? (
+                {loading && products.length === 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
-                        {isSearchingLive && (
-                            <div className="live-search-loading glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1.25rem', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px' }}>
-                                <RefreshCw className="animate-spin text-accent" size={20} />
-                                <span style={{ color: '#fff', fontSize: '0.95rem', fontWeight: '500' }}>Retrieving products lively from external APIs for "{searchQuery}"...</span>
-                            </div>
-                        )}
                         <SkeletonLoader type="product-grid" count={6} />
                     </div>
                 ) : error ? (
@@ -586,21 +539,16 @@ const Products = () => {
                         <AlertCircle size={48} className="text-error" style={{ color: '#ef4444' }} />
                         <h3 style={{ marginTop: '0.5rem', fontSize: '1.25rem', color: '#fff' }}>Unable to load products</h3>
                         <p className="text-muted" style={{ maxWidth: '400px', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)' }}>Verify that the database server is running and check your local network connection. Placeholders or unconfigured environments will prevent listing.</p>
-                        <button className="primary-btn mt-2" onClick={fetchData} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', background: 'var(--accent-color)', border: 'none', color: '#fff', fontWeight: 'bold' }}>
+                        <button className="primary-btn mt-2" onClick={() => fetchProducts(0, true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', background: 'var(--accent-color)', border: 'none', color: '#fff', fontWeight: 'bold' }}>
                             <RefreshCw size={16} /> Retry Connection
                         </button>
                     </div>
-                ) : sortedProducts.length === 0 ? (
+                ) : products.length === 0 ? (
                     <div className="empty-results glass-panel">
                         <Package size={64} className="text-muted" opacity={0.3} />
                         <h3>No Products Found</h3>
-                        <p className="text-muted">No items matched your search filters. Try running a live external lookup, broadening your criteria, or resetting the sidebar.</p>
+                        <p className="text-muted">No items matched your search filters. Try broadening your criteria or resetting the sidebar.</p>
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            {searchQuery && (
-                                <button className="primary-btn" onClick={() => handleLiveSearch(searchQuery)}>
-                                    Search Lively for "{searchQuery}" 🚀
-                                </button>
-                            )}
                             <button className="primary-btn" onClick={handleClearAll} style={{ background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border-color)', boxShadow: 'none' }}>
                                 Reset All Filters
                             </button>
@@ -608,14 +556,8 @@ const Products = () => {
                     </div>
                 ) : (
                     <>
-                        {isSearchingLive && (
-                            <div className="live-search-loading glass-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1rem', marginBottom: '1.5rem', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', width: '100%' }}>
-                                <RefreshCw className="animate-spin text-accent" size={18} />
-                                <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: '500' }}>Checking for more live matches for "{searchQuery}"...</span>
-                            </div>
-                        )}
                         <div className="products-grid">
-                            {sortedProducts.slice(0, visibleCount).map((product, index) => (
+                            {products.map((product, index) => (
                                 <ProductCardExt 
                                     key={product.id || `scraped-${product.title || product.name}-${index}`} 
                                     index={index}
@@ -626,14 +568,10 @@ const Products = () => {
                                 />
                             ))}
                         </div>
-                        {visibleCount < sortedProducts.length && (
-                            <div className="load-more-container">
-                                <button 
-                                    className="primary-btn load-more-btn"
-                                    onClick={() => setVisibleCount(prev => prev + 24)}
-                                >
-                                    Load More Products ({sortedProducts.length - visibleCount} remaining)
-                                </button>
+                        {hasMore && (
+                            <div ref={sentinelRef} className="load-more-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '2rem', color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>
+                                <RefreshCw className="animate-spin text-accent" size={16} />
+                                Loading more products...
                             </div>
                         )}
                     </>

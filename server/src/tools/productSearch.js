@@ -1,9 +1,31 @@
 import { ragEngine } from '../ai/ragEngine.js';
 import { productCache } from '../embeddings/productCache.js';
 import { logger } from '../../utils/logger.js';
+import { approvedFeed } from '../../services/productAggregator/approvedFeed.js';
 
 const CACHE = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function cleanQueryForMatching(query) {
+    if (!query) return '';
+    let q = query.toLowerCase().replace(/,/g, '');
+    
+    // Remove budget matches like "under 30000", "below 30000", "less than 30000"
+    q = q.replace(/under\s*\d+/gi, '');
+    q = q.replace(/below\s*\d+/gi, '');
+    q = q.replace(/less\s*than\s*\d+/gi, '');
+    q = q.replace(/above\s*\d+/gi, '');
+    q = q.replace(/greater\s*than\s*\d+/gi, '');
+    q = q.replace(/\b\d{4,}\b/g, ''); // Remove any 4+ digit number (prices like 30000)
+    
+    // Remove qualitative/stop words
+    const wordsToRemove = ['best', 'cheap', 'top', 'buy', 'shop', 'price', 'budget', 'under', 'below', 'above', 'less', 'than', 'greater', 'for'];
+    for (const w of wordsToRemove) {
+        q = q.replace(new RegExp('\\b' + w + '\\b', 'gi'), '');
+    }
+    
+    return q.replace(/\s+/g, ' ').trim();
+}
 
 export const productSearch = {
     /**
@@ -25,11 +47,12 @@ export const productSearch = {
             const searchFilters = { category, skinType, concern, budget };
             const grounded = await ragEngine.hybridSearch(query, searchFilters, keys);
 
-            const qWords = query ? query.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
+            const cleanedQ = cleanQueryForMatching(query);
+            const qWords = cleanedQ ? cleanedQ.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
             const hasGoodMatch = grounded.products && grounded.products.length > 0 && grounded.products.some(p => {
                 const title = (p.title || p.name || '').toLowerCase();
                 const desc = (p.description || '').toLowerCase();
-                return qWords.every(word => title.includes(word) || desc.includes(word));
+                return qWords.length === 0 || qWords.every(word => title.includes(word) || desc.includes(word));
             });
 
             if (grounded.products && grounded.products.length > 0 && hasGoodMatch) {
@@ -84,95 +107,46 @@ export const productSearch = {
      * Probes external APIs (SerpAPI, Rainforest, Scrapingdog) or yields normalized mock entries.
      */
     async probeExternalAPIs(query, category) {
-        let normalizedQuery = query || 'Product';
-        // Capitalize words
-        normalizedQuery = normalizedQuery.replace(/\b\w/g, c => c.toUpperCase());
+        if (!query) return [];
+        const cleanQ = cleanQueryForMatching(query);
+        const queryLower = cleanQ.toLowerCase();
+        const queryWords = queryLower.split(/\s+/).filter(w => w.length > 1);
+        
+        logger.info(`[DEBUG PROBE] query="${query}" cleanQ="${cleanQ}" queryWords=${JSON.stringify(queryWords)} approvedFeed.length=${approvedFeed ? approvedFeed.length : 'undefined'}`, 'AI_PRODUCT_SEARCH');
+        
+        if (queryWords.length === 0) return [];
 
-        const queryLower = normalizedQuery.toLowerCase();
+        const matched = approvedFeed.filter(p => {
+            const title = (p.title || '').toLowerCase();
+            const brand = (p.brand || '').toLowerCase();
+            const cat = (p.category || '').toLowerCase();
+            const desc = (p.description || '').toLowerCase();
+            
+            return queryWords.every(word => 
+                title.includes(word) || 
+                brand.includes(word) || 
+                cat.includes(word) || 
+                desc.includes(word)
+            );
+        });
 
-        // 1. Detect Category
-        let finalCategory = category || 'Skincare & Beauty';
-        let brands = ['Cetaphil', 'CeraVe', 'The Ordinary', 'La Roche-Posay', 'Minimalist', 'Neutrogena'];
-        let keywords = ['organic', 'exfoliant', 'scraped'];
-        let basePrice = 18.50;
-        let image = 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600';
-        let thumb = 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=200';
-        let description = `High efficacy ${normalizedQuery} formulated to optimize barrier strength and skin tolerance.`;
+        logger.info(`[DEBUG PROBE] Matched count: ${matched.length}`, 'AI_PRODUCT_SEARCH');
 
-        if (queryLower.match(/laptop|computer|phone|camera|keyboard|monitor|cpu|gpu|ram|charger|headphone|mouse|electronics|tv/)) {
-            finalCategory = 'Electronics';
-            brands = ['Logitech', 'Asus', 'Razer', 'Dell', 'Sony', 'Samsung'];
-            keywords = ['electronics', 'high-performance', 'scraped'];
-            basePrice = 799.00;
-            image = 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600';
-            thumb = 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200';
-            description = `Premium high-performance ${normalizedQuery} featuring modern tech architectures, thermal cooling dynamics, and high durability parameters.`;
-        } else if (queryLower.match(/milk|bread|apple|coffee|tea|chocolate|groceries|egg|rice|sugar|snack|fruit|vegetable/)) {
-            finalCategory = 'Groceries';
-            brands = ['Nestle', 'Kraft', 'Whole Foods', 'Organic Valley', 'Lipton'];
-            keywords = ['organic', 'groceries', 'fresh', 'scraped'];
-            basePrice = 6.40;
-            image = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600';
-            thumb = 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=200';
-            description = `Fresh organic ${normalizedQuery} sourced from sustainable farms, meeting the highest nutritional indexes and storage safety levels.`;
-        } else if (queryLower.match(/shirt|jeans|shoes|jacket|dress|bag|fashion|socks|hat|watch/)) {
-            finalCategory = 'Fashion & Apparel';
-            brands = ['Nike', 'Adidas', 'Zara', 'Uniqlo', 'Levis', 'Tommy Hilfiger'];
-            keywords = ['fashion', 'apparel', 'cotton', 'scraped'];
-            basePrice = 45.00;
-            image = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600';
-            thumb = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=200';
-            description = `Premium fit ${normalizedQuery} tailored with high-quality breathability threads and classic modern patterns for long-term comfort.`;
-        } else if (queryLower.match(/chair|table|lamp|sofa|bed|pillow|decor|furniture|kitchen|dining/)) {
-            finalCategory = 'Home & Living';
-            brands = ['IKEA', 'Ashley Furniture', 'Wayfair', 'Target Home', 'Muji'];
-            keywords = ['home', 'furniture', 'minimalist', 'scraped'];
-            basePrice = 120.00;
-            image = 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600';
-            thumb = 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200';
-            description = `Ergonomic minimalist ${normalizedQuery} designed to maximize home space and aesthetic premium warmth, utilizing durable materials.`;
-        }
-
-        // Detect brand in query
-        const knownBrands = ['acer', 'asus', 'hp', 'dell', 'lenovo', 'apple', 'samsung', 'sony', 'logitech', 'razer', 'himalaya', 'derma co', 'mamaearth', 'minimalist', 'the ordinary', 'cetaphil', 'cerave'];
-        let detectedBrand = null;
-        for (const kb of knownBrands) {
-            if (queryLower.includes(kb)) {
-                detectedBrand = kb.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                break;
-            }
-        }
-
-        const displayQuery = detectedBrand ? normalizedQuery.replace(new RegExp(detectedBrand, 'gi'), '').trim() : normalizedQuery;
-
-        const randomBrand1 = detectedBrand || brands[Math.floor(Math.random() * brands.length)];
-        const randomBrand2 = brands.filter(b => b.toLowerCase() !== (detectedBrand || '').toLowerCase())[Math.floor(Math.random() * (brands.length - 1))] || brands[0];
-
-        return [
-            {
-                title: `${randomBrand1} Premium ${displayQuery}`,
-                brand: randomBrand1,
-                price: Number(basePrice.toFixed(2)),
-                rating: 4.6,
-                trust_score: 93,
-                category: finalCategory,
-                description: description,
-                image_url: image,
-                thumbnail: thumb,
-                keywords: [...keywords, 'premium']
-            },
-            {
-                title: `${randomBrand2} Elite ${displayQuery} Pro Series`,
-                brand: randomBrand2,
-                price: Number((basePrice * 1.35).toFixed(2)),
-                rating: 4.4,
-                trust_score: 89,
-                category: finalCategory,
-                description: `High performance professional grade ${displayQuery} optimized for maximum utility and long durability indices.`,
-                image_url: image,
-                thumbnail: thumb,
-                keywords: [...keywords, 'professional']
-            }
-        ];
+        return matched.map(p => ({
+            title: p.title,
+            brand: p.brand,
+            price: Number(p.price || 0),
+            rating: Number(p.rating || 0),
+            trust_score: 95,
+            category: p.category,
+            description: p.description,
+            image_url: p.image,
+            thumbnail: p.image,
+            keywords: [
+                p.brand.toLowerCase(),
+                p.category.toLowerCase(),
+                ...Object.keys(p.specifications || {}).map(k => k.toLowerCase())
+            ]
+        }));
     }
 };

@@ -97,8 +97,15 @@ const CartPage = () => {
                 }
                 
                 const data = await res.json();
-                const scannedPrice = data.price;
-                const targetPlatform = data.platform || 'Flipkart';
+                const payload = data.success ? data.data : data;
+                let scannedPrice = payload.price;
+                let targetPlatform = payload.platform || 'Flipkart';
+
+                if (payload.listings && payload.listings.length > 0) {
+                    const firstListing = payload.listings[0];
+                    scannedPrice = firstListing.price;
+                    targetPlatform = firstListing.source || 'Flipkart';
+                }
 
                 setScanLogs(prev => ({
                     ...prev,

@@ -71,7 +71,7 @@ export const queryRAG = async (prompt) => {
         }
 
         if (products.length > 0) {
-            responseText += `📦 **Inventory Match:** Based on your interest, I found the **${products[0].name}** ($${products[0].price}). It fits into our ${products[0].category} category.\n\n`;
+            responseText += `📦 **Inventory Match:** Based on your interest, I found the **${products[0].name}** (₹${products[0].price}). It fits into our ${products[0].category} category.\n\n`;
             
             if (feedbackHighlights.length > 0) {
                 responseText += `✅ **Community Verdict:** We have ${feedbackHighlights.length}+ verified genuine reviews for this item. Users generally report: "${feedbackHighlights[0].review_text.substring(0, 100)}..."\n\n`;

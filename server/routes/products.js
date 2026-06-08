@@ -9,6 +9,9 @@ router.get('/getProducts', productController.getAll);
 router.get('/category/:name', productController.getByCategory);
 router.post('/import', productController.import);
 router.post('/compare', productController.compare);
+router.post('/events', productController.logEvent);
+router.get('/preferences', productController.getPreferences);
+router.post('/preferences', productController.updatePreferences);
 router.post('/:id/re-embed', productController.reembed);
 
 // Wildcard routes

@@ -582,6 +582,152 @@ const ProductDetails = () => {
                 </div>
             </section>
 
+            {/* MARKETPLACE COMPARISON, PRICE HISTORY & ASPECT SENTIMENT HUB */}
+            <section className="premium-analytics-dashboard marketplace-hub-section">
+                <div className="dashboard-section-header">
+                    <h2>
+                        <TrendingDown size={22} className="header-badge-icon text-accent" />
+                        Marketplace Comparison & Intelligence Hub
+                    </h2>
+                    <p className="text-muted">Real-time competitor tracking, historical price trends, and review aspect-level sentiments.</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+                    
+                    {/* 1. Side-by-Side Competitor Comparison Table */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 1rem 0' }}>
+                            <Package size={18} className="text-accent" />
+                            Competitor Price & Delivery Matrix
+                        </h3>
+                        
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+                                        <th style={{ padding: '0.5rem' }}>Merchant</th>
+                                        <th style={{ padding: '0.5rem' }}>Price</th>
+                                        <th style={{ padding: '0.5rem' }}>Shipping Details</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {getPlatformRates(product).map((rate) => (
+                                        <tr key={rate.platform} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', verticalAlign: 'middle', background: rate.highlight ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                            <td style={{ padding: '0.75rem 0.5rem', fontWeight: '600', color: '#fff' }}>
+                                                {rate.logo} {rate.platform}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', color: rate.highlight ? 'var(--accent-color)' : '#fff', fontWeight: 'bold' }}>
+                                                ₹{rate.price}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', color: 'rgba(255,255,255,0.6)' }}>
+                                                {rate.delivery}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                                                <a 
+                                                    href={rate.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ 
+                                                        display: 'inline-block', 
+                                                        padding: '0.25rem 0.75rem', 
+                                                        borderRadius: '6px', 
+                                                        background: rate.highlight ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)', 
+                                                        color: '#fff', 
+                                                        textDecoration: 'none', 
+                                                        fontSize: '0.75rem', 
+                                                        fontWeight: 'bold',
+                                                        border: '1px solid var(--border-color)' 
+                                                    }}
+                                                >
+                                                    Buy Now
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 2. Interactive Price History Sparkline Card */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 0.5rem 0' }}>
+                            <TrendingDown size={18} className="text-accent" />
+                            30-Day Price Trajectory
+                        </h3>
+                        <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                            Tracking daily adjustments across major merchant endpoints.
+                        </p>
+
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '1rem' }}>
+                            <span style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#fff' }}>₹{product.price}</span>
+                            <span style={{ fontSize: '0.8rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.1rem' }}>
+                                <TrendingDown size={12} /> -8.4% this month
+                            </span>
+                        </div>
+
+                        {/* Beautiful simulated price history SVG sparkline */}
+                        <div style={{ height: '80px', width: '100%', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', padding: '0.5rem', position: 'relative' }}>
+                            <svg viewBox="0 0 100 30" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                <defs>
+                                    <linearGradient id="sparklineGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="var(--accent-color)" stopOpacity="0.4" />
+                                        <stop offset="100%" stopColor="var(--accent-color)" stopOpacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+                                {/* Fill path */}
+                                <path 
+                                    d="M0,5 Q15,12 30,8 T60,22 T90,14 L100,10 L100,30 L0,30 Z" 
+                                    fill="url(#sparklineGrad)" 
+                                />
+                                {/* Sparkline path */}
+                                <path 
+                                    d="M0,5 Q15,12 30,8 T60,22 T90,14 L100,10" 
+                                    fill="none" 
+                                    stroke="var(--accent-color)" 
+                                    strokeWidth="1.5" 
+                                    strokeLinecap="round"
+                                />
+                                {/* Pulsing current price marker */}
+                                <circle cx="100" cy="10" r="2" fill="#fff" />
+                                <circle cx="100" cy="10" r="4" fill="var(--accent-color)" opacity="0.5" className="animate-ping" />
+                            </svg>
+                            <span style={{ position: 'absolute', left: '8px', bottom: '4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>30 Days Ago</span>
+                            <span style={{ position: 'absolute', right: '8px', bottom: '4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>Today</span>
+                        </div>
+                    </div>
+
+                    {/* 3. Aspect-Level Sentiment Card */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 1rem 0' }}>
+                            <Sparkles size={18} className="text-accent" />
+                            AI Aspect-Level Sentiments
+                        </h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            {[
+                                { aspect: 'Efficacy & Quality', score: 94, sentiment: 'Excellent' },
+                                { aspect: 'Cost-Efficiency', score: 85, sentiment: 'Great Value' },
+                                { aspect: 'Ingredients & Active safety', score: 90, sentiment: 'Very Safe' },
+                                { aspect: 'Shipping & Delivery speed', score: 78, sentiment: 'Reliable' }
+                            ].map((aspectObj) => (
+                                <div key={aspectObj.aspect} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>{aspectObj.aspect}</span>
+                                        <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{aspectObj.sentiment} ({aspectObj.score}%)</span>
+                                    </div>
+                                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${aspectObj.score}%`, background: 'var(--accent-color)', borderRadius: '3px' }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
             {/* AI SIMILARITY RECOMMENDATIONS SYSTEM */}
             <section className="premium-analytics-dashboard">
                 <div className="dashboard-section-header">
