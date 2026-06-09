@@ -78,6 +78,9 @@ export const feedbackService = {
             logger.warn(`Could not resolve product ID for: ${product_name}`, 'FEEDBACK');
         }
 
+        const isValidUUID = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+        const safeUserId = isValidUUID(user_id) ? user_id : null;
+
         // 3. Insert direct into standard public.reviews table
         try {
             const reviewRow = {
@@ -88,7 +91,7 @@ export const feedbackService = {
                 emoji: emoji,
                 source: source,
                 mentioned_ingredients: mentioned_ingredients,
-                user_id: user_id || null,
+                user_id: safeUserId,
                 is_public: isPublic,
                 sentiment: userRating >= 4 ? 'positive' : (userRating <= 2 ? 'negative' : 'neutral'),
                 
@@ -118,7 +121,7 @@ export const feedbackService = {
                     review_text: text,
                     trust_score: trust_score,
                     verdict: classification === 'GENUINE' ? 'Genuine' : (classification === 'LIKELY_FAKE' ? 'Fake' : 'Suspicious'),
-                    user_id: user_id || null,
+                    user_id: safeUserId,
                     sentiment: userRating >= 4 ? 'positive' : (userRating <= 2 ? 'negative' : 'neutral')
                 };
                 const { error: fallbackErr } = await supabase.from('reviews').insert(legacyRow);
