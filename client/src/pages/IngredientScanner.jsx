@@ -112,8 +112,9 @@ const IngredientScanner = () => {
                         // Shortened prompt to reduce output tokens
                         const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"1 short benefit\"]}]";
 
-                        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-                        let res = await fetch(url, {
+                        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+                        
+                        const fetchPayload = {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -132,35 +133,23 @@ const IngredientScanner = () => {
                                     responseMimeType: "application/json"
                                 }
                             })
-                        });
+                        };
 
-                    if (res.status === 404) {
-                        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`;
-                        res = await fetch(fallbackUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{
-                                    parts: [
-                                        { text: prompt },
-                                        {
-                                            inlineData: {
-                                                mimeType: mimeType,
-                                                data: cleanBase64
-                                            }
-                                        }
-                                    ]
-                                }],
-                                generationConfig: {
-                                    responseMimeType: "application/json"
-                                }
-                            })
-                        });
-                    }
+                        let res = await fetch(url, fetchPayload);
 
-                    if (!res.ok) {
-                        throw new Error(`Gemini API returned status ${res.status}`);
-                    }
+                        // Fallback logic for 503 (Overloaded) or 404 (Not Found)
+                        if (res.status === 404 || res.status === 503) {
+                            console.warn(`Gemini API primary failed with ${res.status}. Trying fallback model...`);
+                            // Wait a moment before retrying if overloaded
+                            if (res.status === 503) await new Promise(r => setTimeout(r, 1000));
+                            
+                            const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                            res = await fetch(fallbackUrl, fetchPayload);
+                        }
+
+                        if (!res.ok) {
+                            throw new Error(`Gemini API returned status ${res.status}`);
+                        }
 
                     const json = await res.json();
                     const textResponse = json.candidates?.[0]?.content?.parts?.[0]?.text;
