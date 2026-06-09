@@ -68,22 +68,32 @@ export const fakeReviewDetector = {
         }
 
         // 4. Calculate Scores
-        let botScore = 15; // base probability
-        let spamScore = 10;
-        let confidenceScore = 60 + Math.min(30, Math.floor(text.length * 0.1));
+        // Pseudo-random deterministic jitter based on text content
+        const hash = text.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const jitter1 = (hash % 13) - 6; // -6 to +6
+        const jitter2 = (hash % 17) - 8; // -8 to +8
+
+        let botScore = 15 + jitter1; 
+        let spamScore = 10 + jitter2;
+        let confidenceScore = 60 + Math.min(30, Math.floor(text.length * 0.1)) + jitter1;
 
         if (jaccardOverlaps > 0) {
-            botScore += 55;
-            spamScore += 65;
+            botScore += 50;
+            spamScore += 60;
         } else if (highestOverlap > 0.5) {
-            botScore += 30;
-            spamScore += 40;
+            botScore += 25;
+            spamScore += 35;
         }
 
         if (isVague) {
-            botScore += 15;
-            spamScore += 25;
+            const lengthPenalty = Math.max(5, 30 - text.length); // 5 to 30 penalty
+            botScore += Math.floor(lengthPenalty * 0.5);
+            spamScore += Math.floor(lengthPenalty * 0.8);
             confidenceScore -= 20;
+        } else {
+            const detailBonus = Math.min(15, Math.floor(words.size / 3));
+            botScore -= detailBonus;
+            spamScore -= detailBonus;
         }
 
         if (isMismatch) {
