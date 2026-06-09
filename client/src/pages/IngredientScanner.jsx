@@ -71,46 +71,68 @@ const IngredientScanner = () => {
         }
 
         try {
-            // Read image as base64
+            // Read image as base64 and compress it to save tokens
             const reader = new FileReader();
             reader.readAsDataURL(image);
             reader.onloadend = async () => {
-                const base64Data = reader.result;
+                const imgElement = new Image();
+                imgElement.src = reader.result;
+                
+                imgElement.onload = async () => {
+                    // Downscale image to max 800px to save significant API tokens
+                    const canvas = document.createElement('canvas');
+                    const MAX_SIZE = 800;
+                    let width = imgElement.width;
+                    let height = imgElement.height;
 
-                let mimeType = 'image/jpeg';
-                let cleanBase64 = base64Data;
-                if (base64Data.startsWith('data:')) {
-                    const match = base64Data.match(/^data:([^;]+);base64,(.*)$/);
-                    if (match) {
-                        mimeType = match[1];
-                        cleanBase64 = match[2];
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height *= MAX_SIZE / width;
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width *= MAX_SIZE / height;
+                            height = MAX_SIZE;
+                        }
                     }
-                }
 
-                try {
-                    const prompt = "Look at this product label image. \nExtract all ingredients and return ONLY a JSON array:\n[\n  {\n    name: ingredient name,\n    description: one line description,\n    benefits: [benefit1, benefit2]\n  }\n]\nNo extra text, only JSON.";
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imgElement, 0, 0, width, height);
+                    
+                    // Convert back to base64 with moderate JPEG compression (0.7)
+                    const base64Data = canvas.toDataURL('image/jpeg', 0.7);
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-                    let res = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [
-                                    { text: prompt },
-                                    {
-                                        inlineData: {
-                                            mimeType: mimeType,
-                                            data: cleanBase64
+                    let mimeType = 'image/jpeg';
+                    let cleanBase64 = base64Data.replace(/^data:image\/jpeg;base64,/, '');
+
+                    try {
+                        // Shortened prompt to reduce output tokens
+                        const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"1 short benefit\"]}]";
+
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                        let res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{
+                                    parts: [
+                                        { text: prompt },
+                                        {
+                                            inlineData: {
+                                                mimeType: mimeType,
+                                                data: cleanBase64
+                                            }
                                         }
-                                    }
-                                ]
-                            }],
-                            generationConfig: {
-                                responseMimeType: "application/json"
-                            }
-                        })
-                    });
+                                    ]
+                                }],
+                                generationConfig: {
+                                    responseMimeType: "application/json"
+                                }
+                            })
+                        });
 
                     if (res.status === 404) {
                         const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`;
@@ -182,12 +204,13 @@ const IngredientScanner = () => {
                     setLoading(false);
                 }
             };
-        } catch (err) {
-            console.error("Scanner Error:", err);
-            setLoading(false);
-            alert("Scanning failed. Please verify connection and try again.");
-        }
-    };
+        }; // Close reader.onloadend
+    } catch (err) {
+        console.error("Scanner Error:", err);
+        setLoading(false);
+        alert("Scanning failed. Please verify connection and try again.");
+    }
+};
 
     const triggerReset = () => {
         setImage(null);
