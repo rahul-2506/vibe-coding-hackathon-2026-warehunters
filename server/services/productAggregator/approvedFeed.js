@@ -805,5 +805,65 @@ export const approvedFeed = [
             skin_type: "Oily, Acne-prone, Combination",
             concerns: "Blackheads, Whiteheads, Active Acne, Clogged Pores"
         }
+    },
+    // --- GROCERIES ---
+    {
+        title: "Organic Whole Wheat Pasta (500g)",
+        brand: "Organic Tattva",
+        category: "Groceries",
+        price: 150,
+        originalPrice: 150,
+        rating: 4.4,
+        reviewCount: 320,
+        image: "https://images.unsplash.com/photo-1551228420-f19ecfb628ba?w=600&auto=format&fit=crop",
+        description: "100% organic whole wheat pasta, rich in fiber and nutrients.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy1",
+        specifications: { "Weight": "500g", "Type": "Vegetarian", "Merchant": "Internal Store" }
+    },
+    // --- HOME & LIVING ---
+    {
+        title: "Scented Soy Wax Candle (Lavender & Chamomile)",
+        brand: "Bath & Body Works",
+        category: "Home",
+        price: 899,
+        originalPrice: 1299,
+        rating: 4.8,
+        reviewCount: 450,
+        image: "https://images.unsplash.com/photo-1602928321679-560bb453f190?w=600&auto=format&fit=crop",
+        description: "A calming lavender and chamomile scented candle that burns up to 45 hours.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy2",
+        specifications: { "Weight": "400g", "Burn Time": "45 Hours", "Merchant": "Internal Store" }
+    },
+    // --- FASHION ---
+    {
+        title: "Men's Classic Cotton T-Shirt (Navy Blue)",
+        brand: "Levi's",
+        category: "Fashion",
+        price: 699,
+        originalPrice: 999,
+        rating: 4.5,
+        reviewCount: 1200,
+        image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&auto=format&fit=crop",
+        description: "Comfortable, 100% pure cotton classic fit t-shirt for everyday wear.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy3",
+        specifications: { "Material": "100% Cotton", "Fit": "Regular Fit", "Merchant": "Internal Store" }
+    },
+    // --- OTHERS ---
+    {
+        title: "Yoga Mat with Alignment Lines (6mm)",
+        brand: "Boldfit",
+        category: "Others",
+        price: 499,
+        originalPrice: 799,
+        rating: 4.6,
+        reviewCount: 2300,
+        image: "https://images.unsplash.com/photo-1599447421416-3414500d18a5?w=600&auto=format&fit=crop",
+        description: "Anti-slip yoga mat with alignment markers to improve posture and balance.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy4",
+        specifications: { "Thickness": "6mm", "Material": "TPE", "Merchant": "Internal Store" }
     }
 ];
