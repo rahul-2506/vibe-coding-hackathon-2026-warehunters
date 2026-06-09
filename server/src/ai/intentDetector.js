@@ -67,6 +67,9 @@ ENTITIES to extract (null if not found):
 - "concern": (string) acne | dark spots | anti-aging | dryness | oily skin | sensitivity | large pores.
 - "budget": (number) Max budget limit extracted if mentioned.
 - "brand": (string) Retailer/Brand name.
+- "category": (string) E.g. Skincare & Beauty, Electronics, Groceries, Home & Living, Fashion & Apparel.
+- "specifications": (array of strings) Technical details/features (e.g., ["RTX 4060", "16GB RAM", "SPF 50", "Fragrance-Free"]).
+- "exclusions": (array of strings) Ingredients or attributes to avoid (e.g. ["fragrance", "alcohol", "paraben", "silicone"]).
 
 USER MESSAGE: "${message}"
 
@@ -81,7 +84,10 @@ Return a JSON object:
     "skin_type": string | null,
     "concern": string | null,
     "budget": number | null,
-    "brand": string | null
+    "brand": string | null,
+    "category": string | null,
+    "specifications": string[] | null,
+    "exclusions": string[] | null
   }
 }
 Return ONLY a valid JSON. Do not wrap in markdown tags.`;
@@ -146,7 +152,10 @@ Return ONLY a valid JSON. Do not wrap in markdown tags.`;
             skin_type: null,
             concern: null,
             budget: null,
-            brand: null
+            brand: null,
+            category: null,
+            specifications: null,
+            exclusions: null
         };
 
         // Extract budget
@@ -174,6 +183,48 @@ Return ONLY a valid JSON. Do not wrap in markdown tags.`;
         // Extract brand
         const brand = BRANDS.find(b => lowerMsg.includes(b));
         if (brand) entities.brand = brand;
+
+        // Extract category fallback
+        if (lowerMsg.match(/laptop|computer|phone|camera|keyboard|monitor|cpu|gpu|ram|charger|headphone|mouse|electronics|tv|speaker/)) {
+            entities.category = 'Electronics';
+        } else if (lowerMsg.match(/milk|bread|apple|coffee|tea|chocolate|groceries|egg|rice|sugar|snack|fruit|vegetable/)) {
+            entities.category = 'Groceries';
+        } else if (lowerMsg.match(/shirt|jeans|shoes|jacket|dress|bag|fashion|socks|hat|watch|apparel/)) {
+            entities.category = 'Fashion & Apparel';
+        } else if (lowerMsg.match(/chair|table|lamp|sofa|bed|pillow|decor|furniture|kitchen|dining/)) {
+            entities.category = 'Home & Living';
+        } else if (lowerMsg.match(/serum|facewash|cream|moisturizer|scrub|toner|shampoo|lotion|ubtan|neem|skincare|beauty/)) {
+            entities.category = 'Skincare & Beauty';
+        }
+
+        // Extract specifications (e.g. RTX 4060, 16GB, SPF 50, etc.)
+        const specMatches = [];
+        const rtxMatch = lowerMsg.match(/rtx\s*\d{4}/i);
+        if (rtxMatch) specMatches.push(rtxMatch[0]);
+        const ramMatch = lowerMsg.match(/\d+\s*gb\s*(?:ram)?/i);
+        if (ramMatch) specMatches.push(ramMatch[0]);
+        const spfMatch = lowerMsg.match(/spf\s*\d+/i);
+        if (spfMatch) specMatches.push(spfMatch[0]);
+        const sizeMatch = lowerMsg.match(/\d+\s*(?:ml|g)/i);
+        if (sizeMatch) specMatches.push(sizeMatch[0]);
+        if (lowerMsg.includes('waterproof')) specMatches.push('waterproof');
+        if (lowerMsg.includes('wireless')) specMatches.push('wireless');
+        if (specMatches.length > 0) entities.specifications = specMatches;
+
+        // Extract exclusions (e.g. without fragrance, no alcohol, free of parabens)
+        const exclusionsMatches = [];
+        const withoutMatch = lowerMsg.match(/(?:without|no|free\s+of|avoid|excluding)\s+([a-z\s]+)/i);
+        if (withoutMatch) {
+            const items = withoutMatch[1].split(/,|and/);
+            items.forEach(item => {
+                const cleaned = item.trim().split(/\s+/)[0];
+                if (cleaned.length > 2) exclusionsMatches.push(cleaned);
+            });
+        }
+        if (lowerMsg.includes('fragrance-free') || lowerMsg.includes('unscented')) {
+            exclusionsMatches.push('fragrance');
+        }
+        if (exclusionsMatches.length > 0) entities.exclusions = exclusionsMatches;
 
         // Extract comparison items (e.g. Cetaphil vs CeraVe)
         if (intent === INTENTS.COMPARE) {

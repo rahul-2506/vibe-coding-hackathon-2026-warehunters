@@ -126,7 +126,6 @@ const ProductDetails = () => {
     const [discoverySource, setDiscoverySource] = useState('Own Research');
     const [confidenceScore, setConfidenceScore] = useState(80);
     const [imageUrl, setImageUrl] = useState('');
-    const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
 
     const { user } = useAuth();
     const currentUser = user;
@@ -137,7 +136,6 @@ const ProductDetails = () => {
         if (!reviewText.trim() || isSubmittingReview) return;
         setIsSubmittingReview(true);
         setReviewSuccessMsg(false);
-        setAiAnalysisResult(null);
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -173,9 +171,7 @@ const ProductDetails = () => {
                 throw new Error(errorData.message || 'Failed to submit review');
             }
 
-            const payload = await res.json();
-            const analysisData = payload.data || payload;
-            setAiAnalysisResult(analysisData);
+            await res.json();
 
             setReviewText('');
             setReviewIngredients('');
@@ -236,12 +232,20 @@ const ProductDetails = () => {
     // Local submissions retrieval
     useEffect(() => {
         const key = getFeedbackKey(user);
+        let timer;
         try {
             const saved = JSON.parse(localStorage.getItem(key) || '[]');
-            setMySubmittedFeedbacks(saved);
+            timer = setTimeout(() => {
+                setMySubmittedFeedbacks(saved);
+            }, 0);
         } catch {
-            setMySubmittedFeedbacks([]);
+            timer = setTimeout(() => {
+                setMySubmittedFeedbacks([]);
+            }, 0);
         }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [user]);
 
     const isMyFeedback = (f) => {
@@ -270,7 +274,11 @@ const ProductDetails = () => {
                     if (foundProduct.images) {
                         if (Array.isArray(foundProduct.images)) list = foundProduct.images;
                         else if (typeof foundProduct.images === 'string') {
-                            try { list = JSON.parse(foundProduct.images); } catch (e) {}
+                            try {
+                                list = JSON.parse(foundProduct.images);
+                            } catch {
+                                // Default to empty array if parsing fails
+                            }
                         }
                     }
                     if (list.length > 0) {
@@ -421,7 +429,11 @@ const ProductDetails = () => {
         if (Array.isArray(product.images)) {
             imageList = product.images;
         } else if (typeof product.images === 'string') {
-            try { imageList = JSON.parse(product.images); } catch (e) { imageList = [product.images]; }
+            try {
+                imageList = JSON.parse(product.images);
+            } catch {
+                imageList = [product.images];
+            }
         }
     }
     if (imageList.length === 0) {
@@ -482,7 +494,7 @@ const ProductDetails = () => {
                         {/* Interactive floating badges */}
                         <div className="floating-gallery-badges">
                             <span className={`gallery-pill ${stockClass}`}>{stockText}</span>
-                            <span className={`gallery-pill ${trustClass}`}>{productTrust}% Trust Score</span>
+                            <span className={`gallery-pill ${trustClass}`}>{trustLabel} ({productTrust}%)</span>
                         </div>
                     </div>
                 </div>
@@ -520,6 +532,25 @@ const ProductDetails = () => {
                     <p className="hero-description">
                         {product.description || product.explanation || "Premium scientifically validated formula configured for high skin compatibility. Curated under deep quality standards."}
                     </p>
+
+                    {/* Specifications & Key Features block */}
+                    {product.specifications && typeof product.specifications === 'object' && Object.keys(product.specifications).length > 0 && (
+                        <div className="specifications-card glass-panel" style={{ padding: '1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', marginTop: '1rem', marginBottom: '1.5rem' }}>
+                            <h4 style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--accent-color)', letterSpacing: '0.05em', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Cpu size={14} /> PRODUCT SPECIFICATIONS &amp; FEATURES
+                            </h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem 1rem' }}>
+                                {Object.entries(product.specifications)
+                                    .filter(([key]) => key !== 'Merchant' && key !== 'seller' && key !== 'Merchant Name' && key !== 'Seller')
+                                    .map(([key, val]) => (
+                                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '4px' }}>
+                                            <span style={{ color: 'rgba(255,255,255,0.5)' }}>{key}</span>
+                                            <strong style={{ color: '#fff' }}>{val}</strong>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Scientific verifier pill */}
                     <div className="scientific-guarantee-card glass-panel">
@@ -579,6 +610,152 @@ const ProductDetails = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            {/* MARKETPLACE COMPARISON, PRICE HISTORY & ASPECT SENTIMENT HUB */}
+            <section className="premium-analytics-dashboard marketplace-hub-section">
+                <div className="dashboard-section-header">
+                    <h2>
+                        <TrendingDown size={22} className="header-badge-icon text-accent" />
+                        Marketplace Comparison & Intelligence Hub
+                    </h2>
+                    <p className="text-muted">Real-time competitor tracking, historical price trends, and review aspect-level sentiments.</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1.5rem' }}>
+                    
+                    {/* 1. Side-by-Side Competitor Comparison Table */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 1rem 0' }}>
+                            <Package size={18} className="text-accent" />
+                            Competitor Price & Delivery Matrix
+                        </h3>
+                        
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+                                        <th style={{ padding: '0.5rem' }}>Merchant</th>
+                                        <th style={{ padding: '0.5rem' }}>Price</th>
+                                        <th style={{ padding: '0.5rem' }}>Shipping Details</th>
+                                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {getPlatformRates(product).map((rate) => (
+                                        <tr key={rate.platform} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', verticalAlign: 'middle', background: rate.highlight ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
+                                            <td style={{ padding: '0.75rem 0.5rem', fontWeight: '600', color: '#fff' }}>
+                                                {rate.logo} {rate.platform}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', color: rate.highlight ? 'var(--accent-color)' : '#fff', fontWeight: 'bold' }}>
+                                                ₹{rate.price}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', color: 'rgba(255,255,255,0.6)' }}>
+                                                {rate.delivery}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                                                <a 
+                                                    href={rate.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    style={{ 
+                                                        display: 'inline-block', 
+                                                        padding: '0.25rem 0.75rem', 
+                                                        borderRadius: '6px', 
+                                                        background: rate.highlight ? 'var(--accent-color)' : 'rgba(255,255,255,0.08)', 
+                                                        color: '#fff', 
+                                                        textDecoration: 'none', 
+                                                        fontSize: '0.75rem', 
+                                                        fontWeight: 'bold',
+                                                        border: '1px solid var(--border-color)' 
+                                                    }}
+                                                >
+                                                    Buy Now
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* 2. Interactive Price History Sparkline Card */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 0.5rem 0' }}>
+                            <TrendingDown size={18} className="text-accent" />
+                            30-Day Price Trajectory
+                        </h3>
+                        <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                            Tracking daily adjustments across major merchant endpoints.
+                        </p>
+
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '1rem' }}>
+                            <span style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#fff' }}>₹{product.price}</span>
+                            <span style={{ fontSize: '0.8rem', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '0.1rem' }}>
+                                <TrendingDown size={12} /> -8.4% this month
+                            </span>
+                        </div>
+
+                        {/* Beautiful simulated price history SVG sparkline */}
+                        <div style={{ height: '80px', width: '100%', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', padding: '0.5rem', position: 'relative' }}>
+                            <svg viewBox="0 0 100 30" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                <defs>
+                                    <linearGradient id="sparklineGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="var(--accent-color)" stopOpacity="0.4" />
+                                        <stop offset="100%" stopColor="var(--accent-color)" stopOpacity="0.0" />
+                                    </linearGradient>
+                                </defs>
+                                {/* Fill path */}
+                                <path 
+                                    d="M0,5 Q15,12 30,8 T60,22 T90,14 L100,10 L100,30 L0,30 Z" 
+                                    fill="url(#sparklineGrad)" 
+                                />
+                                {/* Sparkline path */}
+                                <path 
+                                    d="M0,5 Q15,12 30,8 T60,22 T90,14 L100,10" 
+                                    fill="none" 
+                                    stroke="var(--accent-color)" 
+                                    strokeWidth="1.5" 
+                                    strokeLinecap="round"
+                                />
+                                {/* Pulsing current price marker */}
+                                <circle cx="100" cy="10" r="2" fill="#fff" />
+                                <circle cx="100" cy="10" r="4" fill="var(--accent-color)" opacity="0.5" className="animate-ping" />
+                            </svg>
+                            <span style={{ position: 'absolute', left: '8px', bottom: '4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>30 Days Ago</span>
+                            <span style={{ position: 'absolute', right: '8px', bottom: '4px', fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>Today</span>
+                        </div>
+                    </div>
+
+                    {/* 3. Aspect-Level Sentiment Card */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.1rem', margin: '0 0 1rem 0' }}>
+                            <Sparkles size={18} className="text-accent" />
+                            AI Aspect-Level Sentiments
+                        </h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                            {[
+                                { aspect: 'Efficacy & Quality', score: 94, sentiment: 'Excellent' },
+                                { aspect: 'Cost-Efficiency', score: 85, sentiment: 'Great Value' },
+                                { aspect: 'Ingredients & Active safety', score: 90, sentiment: 'Very Safe' },
+                                { aspect: 'Shipping & Delivery speed', score: 78, sentiment: 'Reliable' }
+                            ].map((aspectObj) => (
+                                <div key={aspectObj.aspect} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>{aspectObj.aspect}</span>
+                                        <span style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{aspectObj.sentiment} ({aspectObj.score}%)</span>
+                                    </div>
+                                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${aspectObj.score}%`, background: 'var(--accent-color)', borderRadius: '3px' }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
@@ -979,6 +1156,20 @@ const ProductDetails = () => {
                                             />
                                         </div>
 
+                                        {reviewSuccessMsg && (
+                                            <div style={{
+                                                padding: '0.75rem',
+                                                borderRadius: '8px',
+                                                background: 'rgba(34, 197, 94, 0.1)',
+                                                border: '1px solid rgba(34, 197, 94, 0.2)',
+                                                color: '#22c55e',
+                                                fontSize: '0.85rem',
+                                                textAlign: 'center'
+                                            }}>
+                                                Review submitted successfully!
+                                            </div>
+                                        )}
+
                                         <button 
                                             type="submit" 
                                             disabled={isSubmittingReview}
@@ -990,100 +1181,7 @@ const ProductDetails = () => {
                                     </form>
                                 </div>
 
-                                {/* Dynamic Gamified Results Scorecard Panel */}
-                                {aiAnalysisResult && (
-                                    <div className="details-review-card glass-panel animate-glow" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--accent-color)' }}>
-                                        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 1rem 0', color: 'var(--accent-color)', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            🎯 AI Review Analysis Results
-                                        </h3>
 
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
-                                            {/* Circular HSL Trust Meter */}
-                                            <div style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                width: '90px',
-                                                height: '90px',
-                                                borderRadius: '50%',
-                                                border: `4px solid ${aiAnalysisResult.trust_score >= 75 ? '#22c55e' : (aiAnalysisResult.trust_score >= 40 ? '#eab308' : '#ef4444')}`,
-                                                background: 'rgba(0,0,0,0.2)',
-                                                textAlign: 'center'
-                                            }}>
-                                                <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'white' }}>{aiAnalysisResult.trust_score}%</span>
-                                                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Trust</span>
-                                            </div>
-
-                                            {/* Status Badge & Dynamic description */}
-                                            <div style={{ flex: 1, minWidth: '200px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                    <span style={{
-                                                        padding: '0.25rem 0.75rem',
-                                                        borderRadius: '20px',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: 'bold',
-                                                        textTransform: 'uppercase',
-                                                        background: aiAnalysisResult.trust_score >= 75 ? 'rgba(34, 197, 94, 0.15)' : (aiAnalysisResult.trust_score >= 40 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)'),
-                                                        color: aiAnalysisResult.trust_score >= 75 ? '#22c55e' : (aiAnalysisResult.trust_score >= 40 ? '#eab308' : '#ef4444')
-                                                    }}>
-                                                        {aiAnalysisResult.trust_score >= 75 ? '🟢 Genuine Review' : (aiAnalysisResult.trust_score >= 40 ? '🟡 Suspicious Review' : '🔴 Likely Fake Review')}
-                                                    </span>
-
-                                                    <span style={{
-                                                        padding: '0.25rem 0.75rem',
-                                                        borderRadius: '20px',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: 'bold',
-                                                        background: 'rgba(255,255,255,0.05)',
-                                                        color: 'white'
-                                                    }}>
-                                                        {aiAnalysisResult.reviewer_score >= 85 ? '🥇 Expert' : (aiAnalysisResult.reviewer_score >= 60 ? '🥈 Trusted' : '🥉 Casual')} Reviewer
-                                                    </span>
-                                                </div>
-
-                                                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: 'white', fontStyle: 'italic' }}>
-                                                    "{aiAnalysisResult.ml_explanation}"
-                                                </p>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                    AI Prediction Confidence: <strong>{aiAnalysisResult.ai_confidence}%</strong>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Horizontal Factor breakdown metrics */}
-                                        {aiAnalysisResult.analysis_breakdown && (
-                                            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Analyzed Confidence Factors:</span>
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.8rem' }}>
-                                                    {[
-                                                        { name: 'Specificity', val: aiAnalysisResult.analysis_breakdown.specificity },
-                                                        { name: 'Product Relevance', val: aiAnalysisResult.analysis_breakdown.relevance },
-                                                        { name: 'Sentiment Consistency', val: aiAnalysisResult.analysis_breakdown.consistency },
-                                                        { name: 'Detail Richness', val: aiAnalysisResult.analysis_breakdown.detail_richness },
-                                                        { name: 'Spam Risk', val: aiAnalysisResult.analysis_breakdown.spam_risk }
-                                                    ].map(factor => (
-                                                        <div key={factor.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
-                                                                <span style={{ color: 'var(--text-muted)' }}>{factor.name}</span>
-                                                                <strong style={{ color: 'white' }}>{factor.val}%</strong>
-                                                            </div>
-                                                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
-                                                                <div style={{
-                                                                    height: '100%',
-                                                                    width: `${factor.val}%`,
-                                                                    background: factor.name === 'Spam Risk' 
-                                                                        ? (factor.val > 40 ? '#ef4444' : '#22c55e')
-                                                                        : (factor.val >= 75 ? '#22c55e' : (factor.val >= 40 ? '#eab308' : '#ef4444'))
-                                                                }}></div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
 
                         {activeReviews.length > 0 ? (

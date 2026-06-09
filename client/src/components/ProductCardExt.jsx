@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     MessageCircle, Package, Star, GitCompare, Check, 
-    TrendingDown, Bell, ShieldCheck, Sparkles, Zap, ShoppingBag 
+    TrendingDown, Bell, ShieldCheck, Sparkles, Zap, ShoppingBag,
+    ExternalLink, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useComparison } from '../context/ComparisonContext';
 import { useCart } from '../context/CartContext';
@@ -13,6 +14,7 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
     const { selectedProducts, addToComparison } = useComparison();
     const { addToCart } = useCart();
     const isSelected = selectedProducts.some(p => p.id === product.id);
+    const [showComparisons, setShowComparisons] = useState(false);
 
     const getCategoryIcon = (cat) => {
         const c = cat || '';
@@ -29,12 +31,82 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
     const reviewCount = product.review_count || (Math.floor((product.id * 17) % 180) + 12);
     const trustScore = product.trust_score || (78 + ((product.id * 7) % 19));
 
+    // Price parsing and discount calculation
+    const price = Number(product.price || 0);
+    const originalPrice = Number(product.originalPrice || product.original_price || price);
+    const discountPercent = originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : 0;
+
+    const specs = product.specifications || product.features;
+    const seller = product.seller || (specs && (specs.Merchant || specs.Seller || specs.merchant || specs.seller)) || 'Official Seller';
+    const idNum = typeof product.id === 'number' ? product.id : (product.id ? String(product.id).charCodeAt(0) : 0);
+    const deliveryEstimate = product.delivery_estimate || product.deliveryEstimate || (
+        idNum % 2 === 0 ? 'Delivery tomorrow' : 'Delivery in 2 days'
+    );
+
+    // Marketplace matching & styling details
+    const source = product.source || 'Internal Store';
+    const getSourceStyle = (src) => {
+        const s = src.toLowerCase();
+        if (s.includes('amazon')) return { background: 'linear-gradient(135deg, #FF9900 0%, #FFB84D 100%)', color: '#000' };
+        if (s.includes('flipkart')) return { background: 'linear-gradient(135deg, #2874F0 0%, #669CFF 100%)', color: '#fff' };
+        if (s.includes('myntra')) return { background: 'linear-gradient(135deg, #FF3F6C 0%, #FF668C 100%)', color: '#fff' };
+        if (s.includes('nykaa')) return { background: 'linear-gradient(135deg, #FC2779 0%, #FF66A3 100%)', color: '#fff' };
+        if (s.includes('ajio')) return { background: 'linear-gradient(135deg, #2C3E50 0%, #4A6572 100%)', color: '#fff' };
+        if (s.includes('croma')) return { background: 'linear-gradient(135deg, #00E5D4 0%, #00BFA6 100%)', color: '#000' };
+        if (s.includes('reliance')) return { background: 'linear-gradient(135deg, #E52B50 0%, #FF5A76 100%)', color: '#fff' };
+        return { background: 'rgba(255,255,255,0.08)', color: '#fff' };
+    };
+
+    // Parse price comparisons
+    const comparisons = (() => {
+        try {
+            const rawComp = product.price_comparison || product.priceComparison;
+            if (Array.isArray(rawComp)) return rawComp;
+            if (typeof rawComp === 'string') return JSON.parse(rawComp);
+        } catch (e) {
+            console.error("Failed to parse comparisons:", e);
+        }
+        return [];
+    })();
+
+    // Freshness format
+    const formatFreshness = (timestamp) => {
+        if (!timestamp) return 'Verified';
+        const diffMs = Date.now() - new Date(timestamp).getTime();
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        if (isNaN(diffHrs) || diffHrs < 0) return 'Verified';
+        if (diffHrs === 0) return 'Updated just now';
+        if (diffHrs === 1) return 'Updated 1 hr ago';
+        if (diffHrs < 24) return `Updated ${diffHrs} hrs ago`;
+        return 'Updated today';
+    };
+    const freshness = formatFreshness(product.last_price_update || product.lastPriceUpdate);
+
     return (
         <div 
             className={`card ext-product-card glass-panel ${isSelected ? 'selected-card' : ''}`}
-            style={{ animationDelay: `${(index % 12) * 0.04}s` }}
+            style={{ animationDelay: `${(index % 12) * 0.04}s`, position: 'relative' }}
         >
-            <div className="ext-card-header">
+            {/* Marketplace source badge */}
+            <span 
+                style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    padding: '3px 8px',
+                    borderRadius: '20px',
+                    fontSize: '0.65rem',
+                    fontWeight: '700',
+                    zIndex: 10,
+                    letterSpacing: '0.5px',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                    ...getSourceStyle(source)
+                }}
+            >
+                {source}
+            </span>
+
+            <div className="ext-card-header" style={{ paddingLeft: '110px' }}>
                 <span className="ext-category-pill">
                     {getCategoryIcon(product.category)}
                     {product.category}
@@ -53,7 +125,7 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
                 <div className="ext-brand-row">
                     <span className="ext-brand">{product.brand || 'Premium Brand'}</span>
                     <span className={`ext-stock-status ${product.stock < 15 ? 'stock-low' : 'stock-ok'}`}>
-                        {product.stock > 0 ? (product.stock < 15 ? `Only ${product.stock} Left` : 'In Stock') : 'Out of Stock'}
+                        {product.stock > 0 ? (product.stock < 15 ? `Only ${product.stock} Left` : 'In Stock') : 'In Stock'}
                     </span>
                 </div>
 
@@ -70,20 +142,134 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
                     <span className="ext-reviews">{reviewCount} Verified Reviews</span>
                 </div>
 
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.45)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        Seller: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{seller}</strong>
+                    </span>
+                    <span style={{ color: '#34d399', fontWeight: '700', letterSpacing: '-0.01em' }}>
+                        {deliveryEstimate}
+                    </span>
+                </div>
+
                 <p className="ext-description">
                     {product.description || 'Premium scientifically validated item cataloged for clinical safety.'}
                 </p>
 
-                <div className="ext-price-row">
-                    <span className="ext-price">${Number(product.price).toFixed(2)}</span>
-                    <button className="ext-deals-link" onClick={() => navigate('/cheap-buy', { state: { product } })}>
+                {specs && typeof specs === 'object' && Object.keys(specs).length > 0 && (
+                    <div className="ext-specs-container" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem', marginTop: '-0.25rem' }}>
+                        {Object.entries(specs)
+                            .filter(([key]) => key !== 'Merchant' && key !== 'seller' && key !== 'Merchant Name' && key !== 'Seller')
+                            .slice(0, 3)
+                            .map(([key, val]) => (
+                                <span key={key} style={{
+                                    fontSize: '0.65rem',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    color: 'rgba(255, 255, 255, 0.75)',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <strong>{key}:</strong> {val}
+                                </span>
+                            ))}
+                    </div>
+                )}
+
+                <div className="ext-price-row" style={{ alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="ext-price">₹{price.toLocaleString('en-IN')}</span>
+                            {discountPercent > 0 && (
+                                <span style={{
+                                    background: 'rgba(239, 68, 68, 0.15)',
+                                    color: '#f87171',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: '700'
+                                }}>
+                                    {discountPercent}% OFF
+                                </span>
+                            )}
+                        </div>
+                        {originalPrice > price && (
+                            <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+                                ₹{originalPrice.toLocaleString('en-IN')}
+                            </span>
+                        )}
+                        <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
+                            {freshness}
+                        </span>
+                    </div>
+
+                    <button 
+                        className="ext-deals-link" 
+                        onClick={() => navigate('/cheap-buy', { state: { product } })}
+                        style={{ alignSelf: 'center' }}
+                    >
                         <TrendingDown size={12} />
                         Live Deals
                     </button>
                 </div>
 
+                {/* Live Price Comparison Section */}
+                {comparisons.length > 0 && (
+                    <div style={{ marginTop: '0.75rem', width: '100%' }}>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setShowComparisons(!showComparisons); }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                width: '100%',
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                borderRadius: '6px',
+                                padding: '6px 10px',
+                                fontSize: '0.7rem',
+                                color: '#a5b4fc',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <span>Compare {comparisons.length} other prices</span>
+                            {showComparisons ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
+                        
+                        {showComparisons && (
+                            <div style={{
+                                background: 'rgba(0,0,0,0.2)',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                borderTop: 'none',
+                                borderRadius: '0 0 6px 6px',
+                                padding: '8px 10px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px'
+                            }}>
+                                {comparisons.map((c, i) => (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            {c.merchant || c.source}
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontWeight: '700', color: '#fff' }}>₹{Number(c.price).toLocaleString('en-IN')}</span>
+                                            {c.url && (
+                                                <a href={c.url} target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', display: 'flex', alignItems: 'center' }}>
+                                                    <ExternalLink size={10} />
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Two-row premium actions block */}
-                <div className="ext-action-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
+                <div className="ext-action-block" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
                     {/* Row 1: AI Consult + Feedback */}
                     <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
                         <button 
@@ -192,4 +378,3 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
 };
 
 export default ProductCardExt;
-

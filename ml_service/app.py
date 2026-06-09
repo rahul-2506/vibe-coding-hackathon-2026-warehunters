@@ -7,7 +7,7 @@ import logging
 import traceback
 import requests
 from typing import Optional, List, Dict, Any, Union
-from fastapi import FastAPI, Request, File, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, Request, File, UploadFile, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from groq import Groq
 from services.ocr import perform_ocr
 import services.inference as inference
 from services.chatbot import perform_rag_chat, run_with_timeout
+import price_scraper
 
 # Configure structured logging
 logging.basicConfig(
@@ -997,66 +998,81 @@ async def ocr_search(image: UploadFile = File(...)):
 async def scrape_price(payload: ScrapePriceRequest):
     """
     Search-based price scraper looking up live online vendor options.
+    Delegates to the SerpAPI and BeautifulSoup logic in price_scraper.
     """
     product_name = payload.product_name
     if not product_name:
         raise HTTPException(status_code=400, detail="Product name is required")
 
     try:
-        import urllib.parse
-        import re
-        from bs4 import BeautifulSoup
-        import random
+        # Call the unified price_scraper logic
+        data = price_scraper.search_and_scrape(product=product_name, platform="both")
         
-        query = urllib.parse.quote(f"{product_name} price buy")
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        
-        # Safe DuckDuckGo search requests
-        res = requests.get(f"https://html.duckduckgo.com/html/?q={query}", headers=headers, timeout=5)
-        
-        price_results = []
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            snippets = soup.find_all('a', class_='result__snippet')
+        listings = []
+        if data.get("amazon") and data["amazon"].get("price"):
+            listings.append({
+                "price": float(data["amazon"]["price"]),
+                "source": "Amazon",
+                "snippet": data["amazon"].get("title") or "Live price on Amazon.in"
+            })
+        if data.get("flipkart") and data["flipkart"].get("price"):
+            listings.append({
+                "price": float(data["flipkart"]["price"]),
+                "source": "Flipkart",
+                "snippet": data["flipkart"].get("title") or "Live price on Flipkart.com"
+            })
             
-            for snip in snippets[:15]:
-                text = snip.get_text()
-                price_match = re.findall(r'(?:Rs\.?|INR|₹|\$)\s?(\d+(?:,\d+)*(?:\.\d+)?)', text)
-                if price_match:
-                    for p in price_match:
-                        cleaned_val = float(p.replace(',', ''))
-                        if 80 < cleaned_val < 2500:
-                            source = "External Skincare Retailer"
-                            if "nykaa" in text.lower(): source = "Nykaa Premium Store"
-                            if "amazon" in text.lower(): source = "Amazon Marketplace"
-                            if "purplle" in text.lower(): source = "Purplle Skincare"
-                            
-                            price_results.append({
-                                "price": cleaned_val,
-                                "source": source,
-                                "snippet": text[:120] + "..."
-                            })
-                            break
-                            
-        # Standardize matching fallback
-        if not price_results:
-            price_results = [
-                {"price": 285.00, "source": "Nykaa Skincare Center (Direct)", "snippet": "Standard retail pricing for premium salicylic/neem facewashes."},
+        # Sort by price ascending so the cheaper one is first
+        listings.sort(key=lambda x: x["price"])
+        
+        # Fallback to offline defaults if no live listings could be fetched
+        if not listings:
+            logger.warning(f"[SCRAPER RESPONSE] No live prices found for: '{product_name}'. Falling back to mock listings.")
+            listings = [
+                {"price": 285.00, "source": "Nykaa Skincare Center (Direct)", "snippet": "Standard retail pricing for premium skincare facewashes."},
                 {"price": 299.00, "source": "Amazon Skincare Hub", "snippet": "Immediate shipping with standard Prime delivery options."}
             ]
             
-        return {"product_name": product_name, "listings": price_results[:3]}
+        return {"product_name": product_name, "listings": listings}
         
     except Exception as e:
         logger.error(f"Scraping Error: {e}")
         return {
-            "product_name": product_name, 
+            "product_name": product_name,
             "listings": [
                 {"price": 299.00, "source": "Standard Skincare Vendor", "snippet": "Immediate retail delivery fallback options."}
             ]
         }
+
+@app.get("/price/search")
+def price_search(
+    product: str = Query(..., description="Product name to search"),
+    platform: str = Query("both", description="Options: amazon | flipkart | both")
+):
+    """
+    Exposes SerpAPI and scraping pipeline directly on the ML service port.
+    """
+    return price_scraper.search_and_scrape(product=product, platform=platform)
+
+@app.get("/price/from-url")
+def price_from_url(
+    url: str = Query(..., description="Direct e-commerce product URL")
+):
+    """
+    Scrapes price from a direct Amazon or Flipkart URL.
+    """
+    return price_scraper.scrape_from_url(url=url)
+
+@app.get("/serpapi/urls")
+def serpapi_urls(
+    product: str = Query(..., description="Product name to search"),
+    platform: str = Query("both", description="Options: amazon | flipkart | both")
+):
+    """
+    Queries SerpAPI for search results links only.
+    """
+    return price_scraper.get_urls_only(product=product, platform=platform)
+
 
 # ====================================================
 # ANALYTICS COMPATIBILITY ROUTERS (REST API)

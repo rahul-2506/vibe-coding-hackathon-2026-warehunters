@@ -1,129 +1,41 @@
-import { supabase } from '../db.js';
+import { supabase, supabaseAdmin } from '../db.js';
+import { productAggregator } from './productAggregator/index.js';
+import { productCache } from '../src/embeddings/productCache.js';
+import { approvedFeed } from './productAggregator/approvedFeed.js';
 
 const CACHE_DURATION = 2 * 60 * 60 * 1000; // 2 hours
 let inMemoryCache = null;
 let lastCacheTime = 0;
 
-// Curated high-resolution Unsplash product image URLs for each category (8 per category)
-const UNSPLASH_IMAGES = {
-    'Skincare & Beauty': [
-        'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1617897903246-719242758050?w=600&auto=format&fit=crop'
-    ],
-    'Electronics': [
-        'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1572569511254-d8f925fe7cbb?w=600&auto=format&fit=crop'
-    ],
-    'Groceries': [
-        'https://images.unsplash.com/photo-1588964895597-cfccd6e2dbf9?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1607349913338-fca6f7fc42d0?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1610832958506-ee5633613044?w=600&auto=format&fit=crop'
-    ],
-    'Home & Living': [
-        'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1615529182904-14819c35db37?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=600&auto=format&fit=crop'
-    ],
-    'Fashion & Apparel': [
-        'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1479064555552-3ef4979f8908?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=600&auto=format&fit=crop'
-    ],
-    'Others': [
-        'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1512418490979-91795d4389a3?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1581557991964-125469da3b8a?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1575844712292-74142a770947?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop'
-    ]
-};
+let dbProductsColumns = null;
 
-const CATEGORY_DETAILS = {
-    'Skincare & Beauty': {
-        brands: ['Luminis', 'DermaGlow', 'Aura Botanicals', 'Soma Skin', 'Verdant', 'Restora', 'Aether Beauty', 'Nuance', 'Solace', 'Epicurean'],
-        adjectives: ['Hydrating', 'Revitalizing', 'Clarifying', 'Anti-Aging', 'Nourishing', 'Soothing', 'Brightening', 'Firming', 'Balancing', 'Renewing', 'Exfoliating', 'Purifying', 'Active', 'Calming', 'Intense'],
-        nouns: ['Serum', 'Facewash', 'Moisturizer', 'Cleansing Oil', 'Toner', 'Night Cream', 'Eye Gel', 'Clay Mask', 'Sunscreen SPF 50', 'Lip Balm', 'Body Butter', 'Peel Off Mask', 'Micellar Water', 'Face Scrub', 'Hydrosol Mist'],
-        modifiers: ['50ml', '100ml', '150ml', '200ml', '30g', '50g', '15g'],
-        images: UNSPLASH_IMAGES['Skincare & Beauty']
-    },
-    'Electronics': {
-        brands: ['Quantum', 'CyberRig', 'VoltEdge', 'Apex', 'AeroTek', 'Synapse', 'OmniTech', 'Stratus', 'Nova', 'Infinity'],
-        adjectives: ['Wireless', 'Ultra-Slim', 'Pro-Series', 'Noise-Cancelling', 'High-Speed', 'Portable', 'Smart', 'HD', 'Ergonomic', 'Mechanical', 'Bluetooth', 'Multi-Device', 'Rechargeable', 'Precision', 'Compact'],
-        nouns: ['Headphones', 'Laptop', 'Smartwatch', 'Earbuds', 'Keyboard', 'Mouse', 'Monitor', 'Charger', 'Speaker', 'Tablet', 'Webcam', 'Microphone', 'Router', 'Power Bank', 'SSD Drive'],
-        modifiers: ['Pro', 'Ultra', 'Elite', 'Max', 'Plus', 'V2', 'X100', 'Gen 5'],
-        images: UNSPLASH_IMAGES['Electronics']
-    },
-    'Groceries': {
-        brands: ['NatureBrew', 'HarvestGold', 'PureOrigin', 'Sustaina', 'VibrantLife', 'EarthsBest', 'FarmFresh', 'GoldenGrains', 'SimplyOrganic', 'OrchardFresh'],
-        adjectives: ['Organic', 'Sustainably Sourced', 'Pure', 'Natural', 'Premium', 'Whole Wheat', 'Gluten-Free', 'Cold-Pressed', 'Raw', 'Artisanal', 'Salted', 'Roasted', 'Sweet', 'Mild', 'Rich'],
-        nouns: ['Green Tea Pack', 'Honey Jar', 'Granola Oats', 'Olive Oil', 'Almond Milk', 'Dark Chocolate', 'Gourmet Coffee', 'Chia Seeds', 'Cashew Nuts', 'Apple Cider Vinegar', 'Maple Syrup', 'Basmati Rice', 'Sea Salt', 'Fruit Jam', 'Peanut Butter'],
-        modifiers: ['500g', '1kg', '250g', '750ml', '500ml', '12-Pack', 'Single Pack'],
-        images: UNSPLASH_IMAGES['Groceries']
-    },
-    'Home & Living': {
-        brands: ['RusticWood', 'Minimalis', 'Cozydom', 'Moderna', 'Haven', 'LuxeLoom', 'AuraDecor', 'Terra', 'Elysian', 'NordicSpace'],
-        adjectives: ['Minimalist', 'Ergonomic', 'Handcrafted', 'Solid Wood', 'Elegant', 'Modern', 'Cozy', 'Compact', 'Adjustable', 'Breathable', 'Sleek', 'Decorative', 'Geometric', 'Plush', 'Rustic'],
-        nouns: ['Dining Table', 'Sofa Chair', 'Floor Lamp', 'Coffee Table', 'Drawer Chest', 'Bed Linen Set', 'Dining Set', 'Wall Shelf', 'Desk Organizer', 'Throw Pillow', 'Area Rug', 'Scented Candle', 'Ceramic Vase', 'Desk Chair', 'Curtain Panel'],
-        modifiers: ['Standard', 'Large', 'Deluxe', 'Set of 2', 'Classic', 'Premium Edition'],
-        images: UNSPLASH_IMAGES['Home & Living']
-    },
-    'Fashion & Apparel': {
-        brands: ['Veloce', 'AeroWear', 'Loom & Thread', 'StitchCraft', 'Nomad', 'EverFit', 'ClassicFit', 'Breeze', 'Silhouette', 'Echo'],
-        adjectives: ['Classic', 'Breathable', 'Weatherproof', 'Tailored', 'Stretch', 'Lightweight', 'Heavyweight', 'Soft-Touch', 'Casual', 'Sporty', 'Formal', 'Seamless', 'Windproof', 'Cozy', 'Slim-Fit'],
-        nouns: ['Trench Coat', 'Summer T-Shirt', 'Leather Jacket', 'Running Shoes', 'Leather Handbag', 'White Sneakers', 'Active Joggers', 'Cotton Hoodie', 'Denim Jeans', 'Chino Pants', 'Wool Sweater', 'Socks Set', 'Polo Shirt', 'Duffle Bag', 'Beanie Hat'],
-        modifiers: ['S', 'M', 'L', 'XL', 'Unisex', 'One Size', 'Pack of 3'],
-        images: UNSPLASH_IMAGES['Fashion & Apparel']
-    },
-    'Others': {
-        brands: ['Veritas', 'Pinnacle', 'ApexLine', 'Solari', 'Omni', 'Vanguard', 'Genesis', 'Atlas', 'NovaPet', 'Zenith'],
-        adjectives: ['Professional', 'Premium', 'Eco-Friendly', 'Heavy-Duty', 'Compact', 'Multipurpose', 'Travel-Ready', 'Aesthetic', 'Ergonomic', 'Creative', 'Waterproof', 'Deluxe', 'Smart', 'Luxury', 'Advanced'],
-        nouns: ['Hardcover Journal', 'Rollerball Pen', 'Yoga Mat', 'Pet Shampoo', 'Travel Luggage', 'Toy Plane Model', 'Desk Fountain', 'Card Holder', 'Resistance Bands', 'Insulated Flask', 'Dog Collar', 'Umbrella', 'Toolkit', 'Board Game', 'Planner'],
-        modifiers: ['Edition 2026', 'Set', 'Solo', 'Travel Pack', 'Pro Version', 'v4.0'],
-        images: UNSPLASH_IMAGES['Others']
+async function getProductsTableColumns() {
+    if (dbProductsColumns) return dbProductsColumns;
+    try {
+        const { data, error } = await supabase.from('products').select('*').limit(1);
+        if (!error && data && data.length > 0) {
+            dbProductsColumns = new Set(Object.keys(data[0]));
+            return dbProductsColumns;
+        }
+    } catch (e) {
+        console.warn('[productService] Failed to auto-detect products table columns:', e.message);
     }
-};
-
-/**
- * Generates custom keywords for a product based on its fields.
- */
-function generateKeywords(product) {
-    const text = `${product.title} ${product.description} ${product.category} ${product.brand || ''}`.toLowerCase();
-    const words = text.match(/\b[a-z]{3,}\b/g) || [];
-    const stopwords = new Set([
-        'and', 'the', 'with', 'for', 'this', 'that', 'from', 'your', 'skin', 'popular', 'known', 'knowning', 'contains', 'derived'
+    dbProductsColumns = new Set([
+        'id', 'name', 'category', 'brand', 'description', 'created_at', 'images', 
+        'trust_score', 'reviews_count', 'title', 'price', 'rating', 'keywords', 
+        'stock', 'thumbnail', 'image_url', 'review_count', 'embedding'
     ]);
-    const unique = [...new Set(words.filter(w => !stopwords.has(w)))];
-    return unique.slice(0, 8); // top 8 unique keywords
+    return dbProductsColumns;
+}
+
+function filterObjectByColumns(obj, columns) {
+    const filtered = {};
+    for (const key of Object.keys(obj)) {
+        if (columns.has(key)) {
+            filtered[key] = obj[key];
+        }
+    }
+    return filtered;
 }
 
 /**
@@ -166,93 +78,200 @@ function auditProductImages(products) {
     });
 }
 
+function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+const SYNONYMS = {
+    'gaming': ['rog', 'strix', 'tuf', 'cyborg', 'legion', 'rtx', 'gpu', 'gaming', 'playstation', 'ps5', 'rtx 4060', 'rtx 4050'],
+    'laptop': ['laptop', 'notebook', 'ultrabook', 'xps', 'macbook', 'pavilion', 'ideapad', 'vivobook', 'aspire', 'modern'],
+    'pc': ['laptop', 'desktop', 'computer'],
+    'phone': ['phone', 'mobile', 'smartphone', 'iphone', 'galaxy', 'oneplus', 'nord', 'cellphone'],
+    'mobile': ['phone', 'mobile', 'smartphone', 'iphone', 'galaxy', 'oneplus', 'nord', 'cellphone'],
+    'skincare': ['wash', 'cleanser', 'serum', 'cream', 'ordinary', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'derma', 'toner', 'lotion'],
+    'beauty': ['wash', 'cleanser', 'serum', 'cream', 'ordinary', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'derma', 'toner', 'lotion'],
+    'coffee': ['nescafe', 'gold blend', 'coffee'],
+    'tea': ['tata', 'tea', 'gold leaf'],
+    'biscuit': ['oreo', 'cookies'],
+    'cookie': ['oreo', 'cookies'],
+    'butter': ['ghee', 'amul'],
+    'tv': ['philips', 'appliances', 'electronics'],
+    'vacuum': ['dyson', 'cleaner']
+};
+
+function calculateSearchScore(product, queryTerms, rawQuery) {
+    const title = (product.title || product.name || '').toLowerCase();
+    const brand = (product.brand || '').toLowerCase();
+    const category = (product.category || '').toLowerCase();
+    const subcategory = (product.subcategory || '').toLowerCase();
+    const desc = (product.description || '').toLowerCase();
+    const keywords = (product.keywords || []).map(k => String(k).toLowerCase());
+
+    let score = 0;
+
+    // Exact full query match gets a massive boost
+    if (title.includes(rawQuery)) score += 150;
+    if (brand.includes(rawQuery)) score += 80;
+
+    function isFuzzyMatch(term, targetWord) {
+        if (term.length < 4) return term === targetWord;
+        const dist = getLevenshteinDistance(term, targetWord);
+        const maxDist = term.length <= 6 ? 1 : 2;
+        return dist <= maxDist;
+    }
+
+    // Check query terms
+    for (const term of queryTerms) {
+        // 1. Direct or fuzzy match with title words
+        const titleWords = title.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+        for (const word of titleWords) {
+            if (word === term || isFuzzyMatch(term, word)) {
+                score += 40;
+            }
+        }
+
+        // 2. Direct or fuzzy match with brand
+        const brandWords = brand.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+        for (const word of brandWords) {
+            if (word === term || isFuzzyMatch(term, word)) {
+                score += 50; // Brand relevance is high
+            }
+        }
+
+        // 3. Category & Subcategory matching
+        if (category.includes(term) || subcategory.includes(term)) {
+            score += 30;
+        }
+
+        // 4. Keywords matching
+        for (const kw of keywords) {
+            if (kw === term || isFuzzyMatch(term, kw)) {
+                score += 20;
+            }
+        }
+
+        // 5. Semantic matching
+        if (SYNONYMS[term]) {
+            for (const syn of SYNONYMS[term]) {
+                if (title.includes(syn) || brand.includes(syn) || category.includes(syn) || keywords.includes(syn)) {
+                    score += 35; // Semantic match bonus
+                }
+            }
+        }
+
+        // 6. Description match
+        if (desc.includes(term)) {
+            score += 10;
+        }
+    }
+
+    // Boost based on quality, popularity, value for money, and active availability
+    if (score > 0) {
+        const ratingBoost = (product.rating || 0) * 5; // up to 25 points
+        const popularityBoost = Math.min(25, (product.reviewCount || product.review_count || 0) * 0.05); // up to 25 points
+        
+        // Value for money boost based on discount percent
+        const price = Number(product.price || 0);
+        const originalPrice = Number(product.originalPrice || product.original_price || price);
+        const discountPercent = originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : 0;
+        const valueBoost = Math.min(15, discountPercent * 0.3); // up to 15 points
+        
+        // Active availability boost
+        const isAvailable = product.availability === 'In Stock' || (product.stock && Number(product.stock) > 0);
+        const availabilityBoost = isAvailable ? 10 : 0;
+
+        score += ratingBoost + popularityBoost + valueBoost + availabilityBoost;
+    }
+
+    return score;
+}
+
+function normalizePriceToINR(price, title, source = '') {
+    let val = Number(price || 0);
+    let isUSD = false;
+    const titleLower = title.toLowerCase();
+    
+    if (val > 0 && val < 2500) {
+        if (titleLower.match(/laptop|computer|phone|iphone|console|playstation|dyson|vacuum/)) {
+            isUSD = true;
+        } else if (titleLower.match(/serum|cleanser|cream|ordinary|cetaphil/)) {
+            if (val < 45) {
+                isUSD = true;
+            }
+        }
+    }
+    
+    if (isUSD) {
+        return Math.round(val * 83.5);
+    }
+    return Math.round(val);
+}
+
 /**
- * Generates 1020 highly realistic product items deterministically across 6 categories.
+ * Generates 1020 highly realistic product items deterministically across 6 categories using approved feeds.
  */
 export function buildMegaCatalog() {
     const products = [];
     let id = 1;
-    const categories = Object.keys(CATEGORY_DETAILS);
     
-    for (const category of categories) {
-        const details = CATEGORY_DETAILS[category];
-        for (let i = 0; i < 170; i++) {
-            const brand = details.brands[i % details.brands.length];
-            const adj = details.adjectives[i % details.adjectives.length];
-            // Cycle through nouns using index offset to maximize variety
-            const noun = details.nouns[(i + Math.floor(i / 15)) % details.nouns.length];
-            const mod = details.modifiers[i % details.modifiers.length];
-            
-            const title = `${brand} ${adj} ${noun} (${mod})`;
-            
-            let basePrice = 15;
-            if (category === 'Electronics') basePrice = 299;
-            else if (category === 'Home & Living') basePrice = 150;
-            else if (category === 'Fashion & Apparel') basePrice = 65;
-            else if (category === 'Groceries') basePrice = 12;
-            
-            const price = parseFloat((basePrice + ((i * 13) % 87) + 0.99).toFixed(2));
-            const rating = parseFloat((4.0 + ((i * 3) % 11) / 10).toFixed(1));
-            const trustScore = 75 + ((i * 7) % 21);
-            const reviewCount = 20 + ((i * 17) % 180);
-            const stock = 10 + ((i * 5) % 90);
-            
-            const thumbnail = details.images[i % details.images.length];
-            const images = [thumbnail];
-            
-            const cleanDesc = `A premium quality ${adj.toLowerCase()} ${noun.toLowerCase()} designed by ${brand} to elevate your lifestyle. Crafted with attention to detail and standard-setting components.`;
-            const description = getCategoryAwareSummary(category, title, brand, cleanDesc);
-            
-            const keywords = [
-                category.split(' ')[0].toLowerCase(), 
-                brand.toLowerCase(), 
-                adj.toLowerCase(), 
-                noun.toLowerCase(), 
-                'premium', 
-                'highquality'
-            ];
-            
-            // Determine subcategory if category is 'Skincare & Beauty'
-            let subcategory = null;
-            if (category === 'Skincare & Beauty') {
-                const nounLower = noun.toLowerCase();
-                if (nounLower.includes('wash') || nounLower.includes('cleanser') || nounLower.includes('cleansing') || nounLower.includes('micellar')) {
-                    subcategory = 'Face Wash';
-                } else if (nounLower.includes('sunscreen') || nounLower.includes('spf') || nounLower.includes('sun block')) {
-                    subcategory = 'Sunscreen';
-                } else if (nounLower.includes('moisturizer') || nounLower.includes('cream') || nounLower.includes('butter') || nounLower.includes('lotion')) {
-                    subcategory = 'Moisturizer';
-                } else if (nounLower.includes('serum') || nounLower.includes('gel') || nounLower.includes('mist')) {
-                    subcategory = 'Serum';
-                } else if (nounLower.includes('toner')) {
-                    subcategory = 'Toner';
-                } else if (nounLower.includes('mask') || nounLower.includes('scrub') || nounLower.includes('peel')) {
-                    subcategory = 'Masks & Scrubs';
-                } else {
-                    subcategory = 'Others';
-                }
+    for (const p of approvedFeed) {
+        const title = p.title;
+        const keywords = [
+            p.category.toLowerCase(),
+            p.brand.toLowerCase(),
+            'premium',
+            'authentic'
+        ];
+        
+        title.toLowerCase().split(/\s+/).forEach(w => {
+            const cleaned = w.replace(/[^a-z0-9]/g, '');
+            if (cleaned.length > 2 && !keywords.includes(cleaned)) {
+                keywords.push(cleaned);
             }
-            
-            products.push({
-                id,
-                title,
-                name: title, // Map to name for frontend component matching
-                description,
-                category,
-                subcategory,
-                price,
-                rating,
-                brand,
-                stock,
-                thumbnail,
-                image_url: thumbnail, // Map to image_url for frontend card rendering
-                images,
-                trust_score: trustScore,
-                review_count: reviewCount,
-                keywords
-            });
-            id++;
-        }
+        });
+
+        products.push({
+            id,
+            title,
+            name: title,
+            description: p.description,
+            category: p.category,
+            price: p.price,
+            original_price: p.originalPrice || p.price,
+            current_price: p.price,
+            rating: p.rating,
+            brand: p.brand,
+            stock: 50,
+            thumbnail: p.image,
+            image_url: p.image,
+            images: [p.image],
+            trust_score: 90,
+            review_count: p.reviewCount,
+            keywords,
+            source: p.specifications?.Merchant || 'Internal Database',
+            features: p.specifications || {},
+            product_url: p.productUrl || '',
+            last_updated: new Date().toISOString()
+        });
+        id++;
     }
     return products;
 }
@@ -283,12 +302,12 @@ export const productService = {
 
             console.log(`[productService] Database catalog size is: ${count}`);
 
-            // 2. Self-healing check: if count < 1000, trigger automated seed!
-            if (count < 1000) {
-                console.log(`[productService SEED] Product catalog size (${count}) is below target threshold of 1000. Initiating self-healing seed of 1020 premium products...`);
+            // 2. Self-healing check: if count !== approvedFeed.length, trigger automated seed!
+            if (count !== approvedFeed.length) {
+                console.log(`[productService SEED] Product catalog size (${count}) does not match target threshold of ${approvedFeed.length}. Initiating self-healing seed...`);
                 
                 // Clear existing records to ensure catalog consistency
-                const { error: delErr } = await supabase.from('products').delete().neq('id', 0);
+                const { error: delErr } = await supabaseAdmin.from('products').delete().neq('id', 0);
                 if (delErr) {
                     console.error('[productService SEED ERROR] Failed to clear products table:', delErr.message);
                     throw delErr;
@@ -299,58 +318,86 @@ export const productService = {
                 const CHUNK_SIZE = 200;
                 
                 try {
+                    const dbColumns = await getProductsTableColumns();
                     for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
-                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => ({
-                            name: p.title,
-                            title: p.title,
-                            description: p.description,
-                            category: p.category,
-                            price: p.price,
-                            rating: p.rating,
-                            brand: p.brand,
-                            stock: p.stock,
-                            thumbnail: p.thumbnail,
-                            images: p.images,
-                            trust_score: p.trust_score,
-                            keywords: p.keywords
-                        }));
+                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => {
+                            const rawObj = {
+                                name: p.title,
+                                title: p.title,
+                                description: p.description,
+                                category: p.category,
+                                price: p.price,
+                                rating: p.rating,
+                                brand: p.brand,
+                                stock: p.stock,
+                                thumbnail: p.thumbnail,
+                                image_url: p.thumbnail,
+                                images: p.images,
+                                trust_score: p.trust_score,
+                                keywords: p.keywords,
+                                review_count: p.review_count,
+                                reviews_count: p.review_count,
+                                // Pricing metadata fields
+                                current_price: p.current_price,
+                                original_price: p.original_price,
+                                source: p.source,
+                                product_url: p.product_url,
+                                last_price_update: p.last_updated
+                            };
+                            return filterObjectByColumns(rawObj, dbColumns);
+                        });
                         
                         console.log(`[productService SEED] Inserting chunk ${i / CHUNK_SIZE + 1} of ${Math.ceil(megaCatalog.length / CHUNK_SIZE)} (${chunk.length} items)...`);
-                        const { error: insErr } = await supabase.from('products').insert(chunk);
+                        const { error: insErr } = await supabaseAdmin.from('products').insert(chunk);
                         if (insErr) {
                             throw insErr;
                         }
                     }
-                    console.log('[productService SEED SUCCESS] 1020 products successfully seeded to Supabase (with keywords).');
+                    console.log(`[productService SEED SUCCESS] ${megaCatalog.length} products successfully seeded to Supabase.`);
                 } catch (seedErr) {
                     console.warn(`[productService SEED WARNING] Seeding failed with error: ${seedErr.message}. Retrying without 'keywords' column...`);
                     
                     // Clear products table again to start clean
-                    await supabase.from('products').delete().neq('id', 0);
+                    await supabaseAdmin.from('products').delete().neq('id', 0);
+                    
+                    const dbColumns = await getProductsTableColumns();
+                    const filteredCols = new Set(dbColumns);
+                    filteredCols.delete('keywords');
                     
                     for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
-                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => ({
-                            name: p.title,
-                            title: p.title,
-                            description: p.description,
-                            category: p.category,
-                            price: p.price,
-                            rating: p.rating,
-                            brand: p.brand,
-                            stock: p.stock,
-                            thumbnail: p.thumbnail,
-                            images: p.images,
-                            trust_score: p.trust_score
-                        }));
+                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => {
+                            const rawObj = {
+                                name: p.title,
+                                title: p.title,
+                                description: p.description,
+                                category: p.category,
+                                price: p.price,
+                                rating: p.rating,
+                                brand: p.brand,
+                                stock: p.stock,
+                                thumbnail: p.thumbnail,
+                                image_url: p.thumbnail,
+                                images: p.images,
+                                trust_score: p.trust_score,
+                                review_count: p.review_count,
+                                reviews_count: p.review_count,
+                                current_price: p.current_price,
+                                original_price: p.original_price,
+                                source: p.source,
+                                product_url: p.product_url,
+                                last_price_update: p.last_updated
+                            };
+                            return filterObjectByColumns(rawObj, filteredCols);
+                        });
                         
                         console.log(`[productService SEED RETRY] Inserting chunk ${i / CHUNK_SIZE + 1} of ${Math.ceil(megaCatalog.length / CHUNK_SIZE)} (${chunk.length} items without keywords)...`);
-                        const { error: insErr } = await supabase.from('products').insert(chunk);
+                        const { error: insErr } = await supabaseAdmin.from('products').insert(chunk);
                         if (insErr) {
                             console.error('[productService SEED ERROR] Seeding without keywords failed:', insErr.message);
                             throw insErr;
                         }
                     }
-                    console.log('[productService SEED SUCCESS] 1020 products successfully seeded to Supabase (without keywords).');
+                    console.log(`[productService SEED SUCCESS] ${megaCatalog.length} products successfully seeded to Supabase (without keywords).`);
                 }
             }
 
@@ -388,7 +435,7 @@ export const productService = {
 
             if (rows && rows.length > 0) {
                 const products = rows.map(r => {
-                    const reviewCount = Math.floor((r.id * 17) % 180) + 12;
+                    const reviewCount = r.review_count || r.reviews_count || Math.floor((r.id * 17) % 180) + 12;
                     const trustScore = r.trust_score || (78 + ((r.id * 7) % 19));
                     
                     // Determine subcategory if category is 'Skincare & Beauty' or 'Skincare'
@@ -411,12 +458,26 @@ export const productService = {
                         } else {
                             subcategory = 'Others';
                         }
+                    } else if (!subcategory && catLower === 'electronics') {
+                        const nameLower = (r.title || r.name || '').toLowerCase();
+                        if (nameLower.includes('laptop') || nameLower.includes('macbook')) {
+                            subcategory = 'Laptops';
+                        } else if (nameLower.includes('headphone') || nameLower.includes('earbud') || nameLower.includes('airpods')) {
+                            subcategory = 'Headphones';
+                        } else if (nameLower.includes('phone') || nameLower.includes('iphone') || nameLower.includes('galaxy') || nameLower.includes('oneplus') || nameLower.includes('nothing')) {
+                            subcategory = 'Smartphones';
+                        } else {
+                            subcategory = 'Peripherals';
+                        }
                     }
                     
+                    const matchedApproved = approvedFeed.find(feedItem => feedItem.title === r.title || feedItem.title === r.name);
+                    const specifications = matchedApproved ? (matchedApproved.specifications || {}) : {};
+
                     return {
                         id: Number(r.id),
-                        title: r.title,
-                        name: r.title, // frontend compatibility
+                        title: r.title || r.name,
+                        name: r.title || r.name, // frontend compatibility
                         description: r.description,
                         category: r.category,
                         subcategory: subcategory,
@@ -424,12 +485,20 @@ export const productService = {
                         rating: Number(r.rating),
                         brand: r.brand,
                         stock: Number(r.stock),
-                        thumbnail: r.thumbnail,
-                        image_url: r.thumbnail, // frontend compatibility
+                        thumbnail: r.thumbnail || r.image_url,
+                        image_url: r.image_url || r.thumbnail, // frontend compatibility
                         images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : (r.images || [])),
                         trust_score: Number(trustScore),
                         review_count: Number(reviewCount),
-                        keywords: Array.isArray(r.keywords) ? r.keywords : (typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []))
+                        keywords: Array.isArray(r.keywords) ? r.keywords : (typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || [])),
+                        // Real-time pricing columns
+                        current_price: Number(r.current_price || r.price || 0),
+                        original_price: Number(r.original_price || r.price || 0),
+                        source: r.source || 'Internal Database',
+                        product_url: r.product_url || '',
+                        last_price_update: r.last_price_update || r.last_updated || null,
+                        price_comparison: Array.isArray(r.price_comparison) ? r.price_comparison : (typeof r.price_comparison === 'string' ? JSON.parse(r.price_comparison) : (r.price_comparison || [])),
+                        specifications: specifications
                     };
                 });
                 
@@ -468,13 +537,52 @@ export const productService = {
      * Upgraded High-Relevance Weighted Multi-Term Search Engine
      */
     async searchProducts(query, category, sort, subcategory) {
-        let products = await this.getAllProducts();
+        let candidates = [];
         
-        // 1. Text Search matching with weighted relevance scoring
+        if (query) {
+            console.log(`[productService] Querying aggregator for candidates matching "${query}"...`);
+            // Retrieve results from aggregator (which queries all providers, including live DuckDuckGo search and Internal DB)
+            const aggregatorResults = await productAggregator.searchProducts(query, category);
+            
+            // Normalize prices in place to INR
+            aggregatorResults.forEach(p => {
+                p.price = normalizePriceToINR(p.price, p.title || p.name);
+                if (p.originalPrice) p.originalPrice = normalizePriceToINR(p.originalPrice, p.title || p.name);
+            });
+
+            // Filter out internal database / approvedFeed results to prioritize real providers
+            const providerResults = aggregatorResults.filter(p => p.source && p.source !== 'Internal Database' && p.source !== 'approvedFeed');
+            
+            if (providerResults.length > 0) {
+                console.log(`[productService] Prioritizing ${providerResults.length} real provider results over approvedFeed.`);
+                candidates = providerResults;
+            } else {
+                console.log(`[productService] No real provider results. Falling back to internal database.`);
+                candidates = await this.getAllProducts();
+            }
+        } else {
+            // No query: return database products
+            candidates = await this.getAllProducts();
+            // Ensure prices in database products are also normalized (though they should already be in INR)
+            candidates.forEach(p => {
+                p.price = normalizePriceToINR(p.price, p.title || p.name);
+                if (p.originalPrice) p.originalPrice = normalizePriceToINR(p.originalPrice, p.title || p.name);
+            });
+        }
+
+        // Apply category / subcategory filtering
+        let filtered = candidates;
+        if (category && category !== 'All' && category !== '') {
+            filtered = filtered.filter(p => p.category.toLowerCase() === category.toLowerCase());
+        }
+        if (subcategory && subcategory !== 'All' && subcategory !== '') {
+            filtered = filtered.filter(p => p.subcategory && p.subcategory.toLowerCase() === subcategory.toLowerCase());
+        }
+
+        let queryMatched = [];
         if (query) {
             const q = query.toLowerCase().trim();
             const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'with', 'is', 'at', 'by', 'from', 'on', 'this', 'that', 'these', 'those', 'it', 'its', 'as']);
-            // Tokenize and filter out common stopwords unless they are the entire query
             let terms = q.split(/\s+/).filter(t => t.length > 0);
             if (terms.length > 1) {
                 terms = terms.filter(t => !stopwords.has(t));
@@ -482,125 +590,82 @@ export const productService = {
             
             if (terms.length > 0) {
                 const scoredProducts = [];
-                for (const p of products) {
-                    let score = 0;
-                    const title = (p.title || '').toLowerCase();
-                    const desc = (p.description || '').toLowerCase();
-                    const cat = (p.category || '').toLowerCase();
-                    const brand = (p.brand || '').toLowerCase();
-                    const keywords = Array.isArray(p.keywords) ? p.keywords : [];
-
-                    // Exact phrase match bonuses
-                    if (title.includes(q)) score += 100;
-                    else if (desc.includes(q)) score += 40;
-                    
-                    // Term-by-term matching
-                    for (const term of terms) {
-                        const isShort = term.length < 3;
-                        
-                        // Title matches
-                        if (isShort ? new RegExp('\\b' + term + '\\b').test(title) : title.includes(term)) {
-                            score += 30;
-                            // Word boundary bonus
-                            if (new RegExp('\\b' + term + '\\b').test(title)) {
-                                score += 20;
-                            }
-                        }
-                        // Brand matches
-                        if (brand && (isShort ? new RegExp('\\b' + term + '\\b').test(brand) : brand.includes(term))) {
-                            score += 25;
-                            if (new RegExp('\\b' + term + '\\b').test(brand)) {
-                                score += 15;
-                            }
-                        }
-                        // Category matches
-                        if (isShort ? new RegExp('\\b' + term + '\\b').test(cat) : cat.includes(term)) {
-                            score += 20;
-                        }
-                        // Keyword matches
-                        if (keywords.some(kw => isShort ? new RegExp('\\b' + term + '\\b').test(String(kw).toLowerCase()) : String(kw).toLowerCase().includes(term))) {
-                            score += 15;
-                        }
-                        // Description matches
-                        if (isShort ? new RegExp('\\b' + term + '\\b').test(desc) : desc.includes(term)) {
-                            score += 10;
-                            if (new RegExp('\\b' + term + '\\b').test(desc)) {
-                                score += 5;
-                            }
-                        }
-                    }
-
+                for (const p of filtered) {
+                    const score = calculateSearchScore(p, terms, q);
                     if (score > 0) {
                         scoredProducts.push({ product: p, searchScore: score });
                     }
                 }
-
-                // Apply category filtering to the matched list if requested
-                let filteredScored = scoredProducts;
-                if (category && category !== 'All' && category !== '') {
-                    filteredScored = scoredProducts.filter(sp => sp.product.category.toLowerCase() === category.toLowerCase());
-                }
-
-                // Apply sorting
-                if (sort) {
-                    const sortedProducts = filteredScored.map(sp => sp.product);
-                    if (sort === 'trust_score') {
-                        sortedProducts.sort((a, b) => (b.trust_score || 80) - (a.trust_score || 80));
-                    } else if (sort === 'rating') {
-                        sortedProducts.sort((a, b) => b.rating - a.rating);
-                    } else if (sort === 'price') {
-                        sortedProducts.sort((a, b) => a.price - b.price);
-                    } else if (sort === 'price_desc') {
-                        sortedProducts.sort((a, b) => b.price - a.price);
+                
+                // Sort by relevance score descending
+                scoredProducts.sort((a, b) => {
+                    if (b.searchScore !== a.searchScore) {
+                        return b.searchScore - a.searchScore;
                     }
-                    products = sortedProducts;
-                } else {
-                    // Default: Sort by relevance score descending
-                    filteredScored.sort((a, b) => {
-                        if (b.searchScore !== a.searchScore) {
-                            return b.searchScore - a.searchScore;
-                        }
-                        // Secondary tie-breaker: Rating
-                        if (b.product.rating !== a.product.rating) {
-                            return b.product.rating - a.product.rating;
-                        }
-                        // Tertiary tie-breaker: Trust score
-                        return (b.product.trust_score || 80) - (a.product.trust_score || 80);
-                    });
-                    products = filteredScored.map(sp => sp.product);
-                }
+                    if (b.product.rating !== a.product.rating) {
+                        return b.product.rating - a.product.rating;
+                    }
+                    return (b.product.trust_score || 80) - (a.product.trust_score || 80);
+                });
+                queryMatched = scoredProducts.map(sp => sp.product);
             } else {
-                // If query is only whitespace
-                if (category && category !== 'All' && category !== '') {
-                    products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
-                }
-                if (subcategory && subcategory !== 'All' && subcategory !== '') {
-                    products = products.filter(p => p.subcategory && p.subcategory.toLowerCase() === subcategory.toLowerCase());
-                }
+                queryMatched = filtered;
             }
         } else {
-            // No search query: standard category filter and sorting
-            if (category && category !== 'All' && category !== '') {
-                products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
-            }
-            if (subcategory && subcategory !== 'All' && subcategory !== '') {
-                products = products.filter(p => p.subcategory && p.subcategory.toLowerCase() === subcategory.toLowerCase());
-            }
+            queryMatched = filtered;
+        }
 
-            if (sort) {
-                if (sort === 'trust_score') {
-                    products.sort((a, b) => (b.trust_score || 80) - (a.trust_score || 80));
-                } else if (sort === 'rating') {
-                    products.sort((a, b) => b.rating - a.rating);
-                } else if (sort === 'price') {
-                    products.sort((a, b) => a.price - b.price);
-                } else if (sort === 'price_desc') {
-                    products.sort((a, b) => b.price - a.price);
-                }
+        // Apply sorting
+        if (sort) {
+            if (sort === 'trust_score') {
+                queryMatched.sort((a, b) => (b.trust_score || 80) - (a.trust_score || 80));
+            } else if (sort === 'rating') {
+                queryMatched.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+            } else if (sort === 'price') {
+                queryMatched.sort((a, b) => (a.price || 0) - (b.price || 0));
+            } else if (sort === 'price_desc') {
+                queryMatched.sort((a, b) => (b.price || 0) - (a.price || 0));
             }
         }
 
-        return products;
+        // Deduplicate final results to avoid duplicate products
+        const seenIds = new Set();
+        const seenTitles = new Set();
+        const deduplicated = [];
+        for (const p of queryMatched) {
+            const idKey = String(p.id);
+            const titleKey = (p.title || p.name || '').toLowerCase().trim();
+            if (!seenIds.has(idKey) && !seenTitles.has(titleKey)) {
+                seenIds.add(idKey);
+                seenTitles.add(titleKey);
+                deduplicated.push(p);
+            }
+        }
+
+        // Apply diversity re-ranking to prioritize variety at the top
+        const diversified = [];
+        const deferred = [];
+        const brandCounts = {};
+        const modelGroups = {};
+
+        for (const p of deduplicated) {
+            const brand = (p.brand || 'unknown').toLowerCase().trim();
+            const modelKey = (p.title || p.name || '').toLowerCase().split(/\s+/).slice(0, 3).join(' ');
+            
+            brandCounts[brand] = brandCounts[brand] || 0;
+            modelGroups[modelKey] = modelGroups[modelKey] || 0;
+            
+            // Limit brand to 2 and near-duplicate model to 1 in the initial batch
+            if (brandCounts[brand] < 2 && modelGroups[modelKey] < 1) {
+                diversified.push(p);
+                brandCounts[brand]++;
+                modelGroups[modelKey]++;
+            } else {
+                deferred.push(p);
+            }
+        }
+
+        return [...diversified, ...deferred];
     },
 
     /**

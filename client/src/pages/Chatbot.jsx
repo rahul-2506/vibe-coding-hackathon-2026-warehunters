@@ -270,20 +270,68 @@ const RichMessage = ({ msg, onProductCompare, onProductClick, onSuggestionClick,
             <div className="vchat-bubble">
                 <ReactMarkdown>{msg.text}</ReactMarkdown>
 
-                {/* Product List Cards */}
+                {/* Product List Table */}
                 {type === 'product_list' && data?.products?.length > 0 && (
-                    <div className="vchat-product-cards">
-                        {data.products.map(p => (
-                            <ProductCard 
-                                key={p.id} 
-                                product={p} 
-                                onCompareClick={onProductCompare}
-                                onViewClick={onProductClick} 
-                                onTrustClick={onProductTrust}
-                            />
-                        ))}
+                    <div className="vchat-product-table-wrapper" style={{ marginTop: '1rem', overflowX: 'auto' }}>
+                        <table className="vchat-product-table" style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden', background: 'rgba(30, 41, 59, 0.45)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                            <thead>
+                                <tr style={{ background: 'rgba(15, 23, 42, 0.6)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                                    <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.8rem', color: '#94a3b8', fontWeight: '600' }}>Product</th>
+                                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontSize: '0.8rem', color: '#94a3b8', fontWeight: '600' }}>Price</th>
+                                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontSize: '0.8rem', color: '#94a3b8', fontWeight: '600' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.products.map(p => {
+                                    const trust = p.trust_score || 80;
+                                    const trustClass = trust >= 85 ? 'high' : trust >= 70 ? 'mid' : 'low';
+                                    return (
+                                        <tr key={p.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)', transition: 'background-color 0.2s' }} className="table-row-hover">
+                                            <td style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                {p.thumbnail ? (
+                                                    <img src={p.thumbnail} alt={p.title || p.name} style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                                                ) : null}
+                                                <div className="vchat-product-thumb-placeholder" style={{ display: p.thumbnail ? 'none' : 'flex', width: '32px', height: '32px', borderRadius: '6px', justifyContent: 'center', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', fontSize: '1rem' }}>🧴</div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#f8fafc' }}>{p.title || p.name}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', gap: '0.5rem', marginTop: '0.15rem' }}>
+                                                        <span>⭐ {Number(p.rating || 4.2).toFixed(1)}</span>
+                                                        <span className={`vchat-trust-badge ${trustClass}`} style={{ fontSize: '0.65rem', padding: '0 0.25rem', borderRadius: '3px' }}>{trust >= 85 ? 'Trusted' : trust >= 70 ? 'Moderate' : 'Low Trust'}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: '700', color: '#38bdf8' }}>
+                                                ${Number(p.price).toFixed(2)}
+                                            </td>
+                                            <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const other = data.products.find(x => x.id !== p.id);
+                                                            onProductCompare(p, other);
+                                                        }}
+                                                        style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '4px', color: '#818cf8', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                        title="Compare side-by-side using Neural Comparator"
+                                                    >
+                                                        <GitCompare size={10} /> Compare
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => onProductClick(p)}
+                                                        style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '4px', color: '#e2e8f0', padding: '0.25rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                        title="Inspect catalog details"
+                                                    >
+                                                        <Eye size={10} /> View
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 )}
+
 
                 {/* Comparison summaries */}
                 {type === 'comparison' && data?.productA && data?.productB && (
@@ -686,10 +734,18 @@ const Chatbot = () => {
         navigate(`/product/${product.id}`);
     };
 
-    const handleProductCompare = (product) => {
-        const prompt = `Compare ${product.title} with another product`;
-        setInput(prompt);
-        sendMessage(prompt);
+    const handleProductCompare = (product, otherProduct) => {
+        const titleA = product.title || product.name;
+        if (otherProduct) {
+            const titleB = otherProduct.title || otherProduct.name;
+            const prompt = `Compare ${titleA} vs ${titleB}`;
+            setInput(prompt);
+            sendMessage(prompt);
+        } else {
+            const prompt = `Compare ${titleA} with another product`;
+            setInput(prompt);
+            sendMessage(prompt);
+        }
     };
 
     const handleProductTrust = (product) => {

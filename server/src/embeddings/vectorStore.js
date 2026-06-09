@@ -40,14 +40,42 @@ export const vectorStore = {
             }
         }
 
-        // Default: Supabase pgvector RPC
+        // Default: Supabase pgvector RPC with signature fallback
         try {
-            const { data, error } = await supabase.rpc('match_products', {
-                query_embedding: queryEmbedding,
-                match_threshold: 0.05,
-                match_count: limit,
-                category_filter: category || null
-            });
+            let data = null;
+            let error = null;
+
+            try {
+                const response = await supabase.rpc('match_products', {
+                    query_embedding: queryEmbedding,
+                    match_threshold: 0.05,
+                    match_count: limit,
+                    category_filter: category || null
+                });
+                data = response.data;
+                error = response.error;
+            } catch (rpcErr) {
+                error = rpcErr;
+            }
+
+            if (error && (error.code === 'PGRST202' || error.message?.includes('Could not find') || error.message?.includes('schema cache'))) {
+                logger.warn(`[VECTOR STORE] 4-parameter match_products RPC signature not found, retrying with 3-parameter...`, 'AI_VECTOR');
+                try {
+                    const response = await supabase.rpc('match_products', {
+                        query_embedding: queryEmbedding,
+                        match_threshold: 0.05,
+                        match_count: limit
+                    });
+                    data = response.data;
+                    error = response.error;
+
+                    if (data && category) {
+                        data = data.filter(p => p.category?.toLowerCase() === category.toLowerCase());
+                    }
+                } catch (fallbackErr) {
+                    error = fallbackErr;
+                }
+            }
 
             if (error) throw error;
             return data || [];
