@@ -361,16 +361,10 @@ async def rag_chat(payload: ChatRequest, request: Request):
 def detect_category(product_name: str, product_category: Optional[str]) -> str:
     name = (product_name or '').lower()
     cat = (product_category or '').lower()
-    if 'skincare' in cat or 'beauty' in cat or any(x in name for x in ['serum', 'facewash', 'cream', 'moisturizer', 'scrub', 'toner', 'shampoo', 'lotion', 'ubtan', 'neem']):
-        return 'Beauty'
-    elif 'laptop' in cat or 'laptop' in name or any(x in name for x in ['book', 'macbook', 'rig', 'gaming pc', 'zenithbook', 'predator', 'swiftbook']):
-        return 'Laptops'
-    elif 'electronics' in cat or any(x in name for x in ['headphones', 'buds', 'watch', 'phone', 'speaker', 'keyboard', 'mouse', 'monitor', 'anc', 'voltedge', 'apex', 'cyberrig']):
-        return 'Electronics'
-    elif 'fashion' in cat or 'apparel' in cat or any(x in name for x in ['shirt', 'jacket', 'shoes', 'sneakers', 'hoodie', 'jeans', 'pants', 't-shirt', 'coat', 'wear']):
-        return 'Fashion'
+    if 'skincare' in cat or 'beauty' in cat or any(x in name for x in ['serum', 'facewash', 'cream', 'moisturizer', 'scrub', 'toner', 'shampoo', 'lotion', 'ubtan', 'neem', 'cleanser', 'sunscreen', 'spf']):
+        return 'Skincare'
     else:
-        return 'Others'
+        return 'Electronics'
 
 PREFERENCE_KEYWORDS = {
     'Battery': ["battery", "charge", "backup", "mah", "life", "power", "screen on time", "sot", "rechargeable"],
@@ -391,9 +385,7 @@ PREFERENCE_KEYWORDS = {
 
 CATEGORY_DEFAULTS = {
     'Electronics': ["Battery", "Performance", "Display", "Noise Cancellation"],
-    'Beauty': ["Ingredients", "Skin Type", "Results"],
-    'Laptops': ["Battery", "Performance", "Display", "Thermals"],
-    'Fashion': ["Material", "Size Accuracy", "Durability"],
+    'Skincare': ["Ingredients", "Skin Type", "Results"],
     'Others': ["Quality", "Value", "Usability"]
 }
 

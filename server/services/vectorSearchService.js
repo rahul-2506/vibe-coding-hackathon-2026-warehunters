@@ -2,6 +2,7 @@ import { supabase } from '../db.js';
 import { embeddingService } from './embeddingService.js';
 import { rankingService } from './rankingService.js';
 import { productService } from './productService.js';
+import { logger } from '../utils/logger.js';
 
 function parseSearchIntent(query) {
     const q = (query || '').toLowerCase().trim();
@@ -26,13 +27,11 @@ function parseSearchIntent(query) {
     }
 
     // Extract brands
-    const brandsList = ['dell', 'hp', 'lenovo', 'asus', 'acer', 'msi', 'samsung', 'apple', 'oneplus', 'nothing', 'sony', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'nescafe', 'tata', 'oreo', 'amul', 'philips', 'dyson', 'ikea', 'nike', 'adidas', 'levis', 'uniqlo'];
+    const brandsList = ['dell', 'hp', 'lenovo', 'asus', 'acer', 'msi', 'samsung', 'apple', 'oneplus', 'nothing', 'sony', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'philips', 'dyson', 'logitech'];
     for (const b of brandsList) {
         if (q.includes(b)) {
             let mappedBrand = b.charAt(0).toUpperCase() + b.slice(1);
             if (b === 'oneplus') mappedBrand = 'OnePlus';
-            if (b === 'levis') mappedBrand = "Levi's";
-            if (b === 'ikea') mappedBrand = 'IKEA';
             intent.brands.push(mappedBrand);
         }
     }
@@ -56,149 +55,213 @@ function parseSearchIntent(query) {
 
 export const vectorSearchService = {
     /**
-     * Performs semantic product retrieval using pgvector.
-     * Cascades down to text search if no embedding model key is available or if queries fail.
+     * Upgraded 7-Stage Semantic Search Pipeline:
+     * 1. Query Normalization
+     * 2. Intent Parsing (Brand, Budget, Features)
+     * 3. Category Resolution (Skincare or Electronics only)
+     * 4. Dual Retrieval (Vector Search & Keyword Search)
+     * 5. Reciprocal Rank Fusion (RRF) Merge
+     * 6. Metadata Filtering & Details Expansion
+     * 7. Preference Ranking & Output Generation
      */
     async semanticSearch(query, category = null, budget = null, limit = 12, userPreferences = null) {
-        const parsedIntent = parseSearchIntent(query);
-        const finalCategory = category || parsedIntent.category;
+        logger.info(`[Vector Search] Executing semantic search pipeline for: "${query}"`, 'SEARCH_PIPELINE');
+
+        // Stage 1: Query input and normalization
+        const cleanQuery = (query || '').trim();
+
+        // Stage 2: Intent detection
+        const parsedIntent = parseSearchIntent(cleanQuery);
         const finalBudget = budget || parsedIntent.budget;
 
+        // Stage 3: Category detection (Strictly map to Skincare or Electronics, rejecting others)
+        let resolvedCategory = category || parsedIntent.category;
+        if (!resolvedCategory || resolvedCategory === 'All') {
+            const q = cleanQuery.toLowerCase();
+            if (q.match(/serum|cream|moisturizer|cleanser|facewash|toner|sunscreen|skin|ingredients|wrinkle|acne|dryness|oily|sensit/)) {
+                resolvedCategory = 'Skincare';
+            } else if (q.match(/laptop|phone|earbud|headphone|mouse|keyboard|monitor|gpu|cpu|ram|rtx|intel|apple|samsung|electronics|ssd|console/)) {
+                resolvedCategory = 'Electronics';
+            }
+        }
+        
+        // Normalize naming
+        if (resolvedCategory === 'Skincare & Beauty') {
+            resolvedCategory = 'Skincare';
+        }
+
         const rankingContext = {
-            query,
+            query: cleanQuery,
             budget: finalBudget,
-            category: finalCategory,
+            category: resolvedCategory,
             subcategory: parsedIntent.subcategory,
             brands: parsedIntent.brands,
             isGaming: parsedIntent.isGaming,
             ...userPreferences
         };
 
-        if (!query || typeof query !== 'string' || query.trim() === '') {
-            // Retrieve default products if query is empty
+        // If query is empty, return default products matching resolved category
+        if (!cleanQuery) {
             const products = await productService.getAllProducts();
-            const filtered = finalCategory && finalCategory !== 'All'
-                ? products.filter(p => p.category.toLowerCase() === finalCategory.toLowerCase())
+            const filtered = resolvedCategory && resolvedCategory !== 'All'
+                ? products.filter(p => p.category.toLowerCase() === resolvedCategory.toLowerCase())
                 : products;
             
-            // Map relevance map for ranking
             const relevanceMap = new Map();
             filtered.forEach(p => relevanceMap.set(String(p.id), 0.5));
             return rankingService.rankProducts(filtered.slice(0, limit), relevanceMap, rankingContext);
         }
 
+        let vectorResults = [];
+        let keywordResults = [];
+
+        // Stage 4: Dual Retrieval (Vector Search)
         try {
-            console.log(`[Vector Search] Generating embedding for query: "${query}"`);
+            logger.info(`[Vector Search] Generating query embedding...`);
+            const queryEmbedding = await embeddingService.generateEmbedding(cleanQuery);
             
-            // 1. Generate embedding
-            const queryEmbedding = await embeddingService.generateEmbedding(query);
-            
-            // 2. Query Supabase RPC match_products with fallback for signatures
-            console.log(`[Vector Search] Querying match_products RPC (attempting 4-parameter signature)...`);
-            let vectorResults = null;
-            let error = null;
-
-            try {
-                const response = await supabase.rpc('match_products', {
-                    query_embedding: queryEmbedding,
-                    match_threshold: 0.1,
-                    match_count: limit * 2,
-                    category_filter: (finalCategory && finalCategory !== 'All' && finalCategory !== '') ? finalCategory : null
-                });
-                vectorResults = response.data;
-                error = response.error;
-            } catch (rpcErr) {
-                console.warn(`[Vector Search] 4-parameter RPC failed with exception: ${rpcErr.message}. Retrying with 3-parameter signature...`);
-                error = rpcErr;
-            }
-
-            // Fallback to 3-parameter signature if 4-parameter signature is missing in database schema cache
-            if (error && (error.code === 'PGRST202' || error.message?.includes('Could not find') || error.message?.includes('schema cache'))) {
-                console.log(`[Vector Search] Re-attempting query with 3-parameter signature (excluding category_filter)...`);
-                try {
-                    const response = await supabase.rpc('match_products', {
-                        query_embedding: queryEmbedding,
-                        match_threshold: 0.1,
-                        match_count: limit * 2
-                    });
-                    
-                    vectorResults = response.data;
-                    error = response.error;
-
-                    // Manually filter by category in memory since pgvector couldn't filter in DB
-                    if (vectorResults && finalCategory && finalCategory !== 'All' && finalCategory !== '') {
-                        console.log(`[Vector Search] Performing in-memory category filtering for "${finalCategory}"...`);
-                        vectorResults = vectorResults.filter(p => p.category?.toLowerCase() === finalCategory.toLowerCase());
-                    }
-                } catch (fallbackErr) {
-                    error = fallbackErr;
-                }
-            }
+            logger.info(`[Vector Search] Querying match_products RPC...`);
+            const { data, error } = await supabase.rpc('match_products', {
+                query_embedding: queryEmbedding,
+                match_threshold: 0.1,
+                match_count: limit * 3,
+                category_filter: (resolvedCategory && resolvedCategory !== 'All') ? resolvedCategory : null
+            });
 
             if (error) {
-                console.error(`[Vector Search ERROR] Supabase RPC failed: ${error.code || 'EXCEPTION'} - ${error.message}. Falling back to text search...`);
-                throw new Error(error.message || 'Vector search RPC failed');
-            }
-
-            if (vectorResults && vectorResults.length > 0) {
-                console.log(`[Vector Search] Vector search returned ${vectorResults.length} matches.`);
-                
-                // Map similarities into a relevance map
-                const relevanceMap = new Map();
-                const productIds = vectorResults.map(p => {
-                    relevanceMap.set(String(p.id), p.similarity);
-                    return p.id;
+                logger.warn(`[Vector Search] RPC match_products failed: ${error.message}. Retrying without category_filter...`);
+                // Fallback to RPC without category filter
+                const { data: fallbackData, error: fallbackError } = await supabase.rpc('match_products', {
+                    query_embedding: queryEmbedding,
+                    match_threshold: 0.1,
+                    match_count: limit * 3
                 });
 
-                // Fetch full products info including features
-                const { data: fullProducts, error: fetchErr } = await supabase
-                    .from('products')
-                    .select('*')
-                    .in('id', productIds);
-                
-                if (fetchErr) throw fetchErr;
-
-                // Sync formats and resolve fields for frontend compatibility
-                const mappedProducts = fullProducts.map(p => {
-                    const sim = relevanceMap.get(String(p.id)) || 0.5;
-                    return {
-                        ...p,
-                        name: p.title || p.name,
-                        thumbnail: p.thumbnail || p.image_url,
-                        image_url: p.image_url || p.thumbnail,
-                        review_count: p.review_count || p.reviews_count || 0
-                    };
-                });
-
-                // Rank the matching items
-                return rankingService.rankProducts(mappedProducts, relevanceMap, rankingContext);
+                if (fallbackError) throw fallbackError;
+                vectorResults = fallbackData || [];
+            } else {
+                vectorResults = data || [];
             }
-
-            console.log('[Vector Search] Vector search returned 0 matches. Falling back to keyword matching...');
-
         } catch (err) {
-            console.error('[Vector Search Error] Semantic search pipeline failed:', err.message);
+            logger.error(`[Vector Search ERROR] Vector matching failed: ${err.message}`, 'SEARCH_PIPELINE');
+            vectorResults = [];
         }
 
-        // 3. Fallback to standard text search + ranking
-        console.log('[Vector Search Fallback] Executing text search matching...');
-        const keywordMatched = await productService.searchProducts(query, finalCategory, null, parsedIntent.subcategory);
+        // Stage 4: Dual Retrieval (Keyword Search in parallel)
+        try {
+            keywordResults = await productService.searchProducts(cleanQuery, resolvedCategory, null, parsedIntent.subcategory);
+        } catch (err) {
+            logger.error(`[Vector Search ERROR] Keyword matching failed: ${err.message}`, 'SEARCH_PIPELINE');
+            keywordResults = [];
+        }
+
+        // Stage 5: Reciprocal Rank Fusion (RRF) Merge
+        const RRF_K = 60;
+        const rrfScores = new Map();
         
-        // Compute basic string distance/relevance score for ranking
-        const relevanceMap = new Map();
-        const qLower = query.toLowerCase();
-        
-        keywordMatched.forEach(p => {
-            const title = (p.title || '').toLowerCase();
-            const desc = (p.description || '').toLowerCase();
-            
-            let matchScore = 0.3; // base similarity
-            if (title.includes(qLower)) matchScore += 0.5;
-            else if (desc.includes(qLower)) matchScore += 0.2;
-            
-            relevanceMap.set(String(p.id), Math.min(1.0, matchScore));
+        vectorResults.forEach((doc, idx) => {
+            const docId = String(doc.id);
+            const rank = idx + 1;
+            const score = 1 / (RRF_K + rank);
+            rrfScores.set(docId, (rrfScores.get(docId) || 0) + score);
         });
 
-        return rankingService.rankProducts(keywordMatched, relevanceMap, rankingContext);
+        keywordResults.forEach((doc, idx) => {
+            const docId = String(doc.id);
+            const rank = idx + 1;
+            const score = 1 / (RRF_K + rank);
+            rrfScores.set(docId, (rrfScores.get(docId) || 0) + score);
+        });
+
+        // Merge product candidates
+        const mergedCandidatesMap = new Map();
+        vectorResults.forEach(p => mergedCandidatesMap.set(String(p.id), p));
+        keywordResults.forEach(p => {
+            const idStr = String(p.id);
+            if (!mergedCandidatesMap.has(idStr)) {
+                mergedCandidatesMap.set(idStr, p);
+            }
+        });
+
+        const mergedProductIds = Array.from(rrfScores.keys())
+            .sort((a, b) => rrfScores.get(b) - rrfScores.get(a))
+            .map(idStr => Number(idStr));
+
+        if (mergedProductIds.length === 0) {
+            logger.info(`[Vector Search] No products found via dual retrieval.`, 'SEARCH_PIPELINE');
+            return [];
+        }
+
+        // Stage 6: Metadata Filtering & Details Expansion
+        let finalProducts = [];
+        try {
+            const { data: fullProducts, error: fetchErr } = await supabase
+                .from('products')
+                .select('*, skincare_details(*), electronics_details(*)')
+                .in('id', mergedProductIds);
+
+            if (fetchErr) throw fetchErr;
+
+            // Flatten joined details and apply strict filters
+            finalProducts = fullProducts.map(r => {
+                const skincare = r.skincare_details ? (Array.isArray(r.skincare_details) ? r.skincare_details[0] : r.skincare_details) : null;
+                const electronics = r.electronics_details ? (Array.isArray(r.electronics_details) ? r.electronics_details[0] : r.electronics_details) : null;
+
+                return {
+                    ...r,
+                    name: r.title || r.name,
+                    thumbnail: r.thumbnail || r.image_url,
+                    image_url: r.image_url || r.thumbnail,
+                    review_count: r.review_count || r.reviews_count || 0,
+                    // Flattened details
+                    ingredients: skincare?.ingredients || '',
+                    key_ingredients: skincare?.key_ingredients || '',
+                    skin_type: skincare?.skin_type || '',
+                    concerns: skincare?.concerns || '',
+                    specifications_json: electronics?.specifications_json || {},
+                    technical_features: electronics?.technical_features || ''
+                };
+            });
+
+            // Metadata Filters: Category constraint
+            if (resolvedCategory && resolvedCategory !== 'All') {
+                finalProducts = finalProducts.filter(p => p.category?.toLowerCase() === resolvedCategory.toLowerCase());
+            } else {
+                // Ensure only allowed categories are ever returned
+                finalProducts = finalProducts.filter(p => p.category === 'Skincare' || p.category === 'Electronics');
+            }
+
+            // Metadata Filters: Budget constraint
+            if (finalBudget) {
+                finalProducts = finalProducts.filter(p => p.price <= finalBudget);
+            }
+
+            // Metadata Filters: Brand constraints
+            if (parsedIntent.brands.length > 0) {
+                finalProducts = finalProducts.filter(p => 
+                    parsedIntent.brands.some(b => p.brand?.toLowerCase() === b.toLowerCase())
+                );
+            }
+        } catch (err) {
+            logger.error(`[Vector Search ERROR] Details fetch and filtering failed: ${err.message}`, 'SEARCH_PIPELINE');
+            return [];
+        }
+
+        // Sort final products in the order of their RRF rank
+        const orderMap = new Map();
+        mergedProductIds.forEach((id, index) => orderMap.set(id, index));
+        finalProducts.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
+
+        // Create relevance similarity map based on RRF scores for rankingService
+        const relevanceMap = new Map();
+        finalProducts.forEach(p => {
+            // Normalize RRF score to a 0.0 - 1.0 range
+            const rrfVal = rrfScores.get(String(p.id)) || 0;
+            relevanceMap.set(String(p.id), Math.min(1.0, rrfVal * 30)); 
+        });
+
+        // Stage 7: Preference ranking & output generation
+        logger.info(`[Vector Search] Delegating ${finalProducts.length} filtered products to rankingService...`);
+        return rankingService.rankProducts(finalProducts.slice(0, limit), relevanceMap, rankingContext);
     }
 };

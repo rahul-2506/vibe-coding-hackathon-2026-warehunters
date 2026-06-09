@@ -24,7 +24,8 @@ async function check() {
 
     await checkTable('products');
     await checkTable('user_memories');
-    await checkTable('user_preferences');
+    await checkTable('skincare_details');
+    await checkTable('electronics_details');
 }
 
 check().catch(console.error);

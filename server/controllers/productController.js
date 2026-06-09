@@ -188,14 +188,15 @@ export const productController = {
             const sortTypeVal = req.query.sort || 'trust_score';
             let results = [];
             try {
-                results = await productService.searchProducts(
+                results = await vectorSearchService.semanticSearch(
                     q || '',
                     category || null,
-                    sortTypeVal,
-                    subcategory || null
+                    budgetVal,
+                    100, // Fetch a reasonably large candidate set for RRF and metadata filters
+                    userPreferences
                 );
             } catch (err) {
-                logger.warn(`[PRODUCT CONTROLLER] Product service search failed: ${err.message}. Proceeding with empty results.`, 'PRODUCT_CONTROLLER');
+                logger.warn(`[PRODUCT CONTROLLER] Vector semantic search failed: ${err.message}. Proceeding with empty results.`, 'PRODUCT_CONTROLLER');
             }
 
             // Sync formats for frontend compatibility

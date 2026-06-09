@@ -4,7 +4,7 @@ import { approvedFeed } from './approvedFeed.js';
 
 // Curated high-res images to associate with categories to avoid placeholders
 const CATEGORY_IMAGES = {
-    'Skincare & Beauty': [
+    'Skincare': [
         'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=600&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=600&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&auto=format&fit=crop',
@@ -15,25 +15,6 @@ const CATEGORY_IMAGES = {
         'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=600&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop',
         'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop'
-    ],
-    'Groceries': [
-        'https://images.unsplash.com/photo-1588964895597-cfccd6e2dbf9?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1607349913338-fca6f7fc42d0?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&auto=format&fit=crop'
-    ],
-    'Home & Living': [
-        'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&auto=format&fit=crop'
-    ],
-    'Fashion & Apparel': [
-        'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&auto=format&fit=crop'
-    ],
-    'Others': [
-        'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?w=600&auto=format&fit=crop'
     ]
 };
 
@@ -59,8 +40,16 @@ function cleanQueryForMatching(query) {
 }
 
 export const searchScraper = {
-    async scrapeMerchant(siteDomain, query, categoryName = 'Others') {
-        logger.info(`[SCRAPER] Querying DuckDuckGo live search for: "${query}" on site "${siteDomain}"`, 'AGGREGATOR_SCRAPER');
+    async scrapeMerchant(siteDomain, query, categoryName = 'Skincare') {
+        // Normalize input category
+        let targetCategory = categoryName;
+        if (categoryName === 'Skincare & Beauty' || categoryName === 'Skincare') {
+            targetCategory = 'Skincare';
+        } else {
+            targetCategory = 'Electronics';
+        }
+
+        logger.info(`[SCRAPER] Querying DuckDuckGo live search for: "${query}" on site "${siteDomain}" (Category: ${targetCategory})`, 'AGGREGATOR_SCRAPER');
         try {
             const url = `https://html.duckduckgo.com/html/?q=site:${siteDomain}+${encodeURIComponent(query)}`;
             const response = await fetch(url, {
@@ -70,7 +59,7 @@ export const searchScraper = {
             });
             if (response.ok) {
                 const html = await response.text();
-                const results = this.parseDDGHtml(html, siteDomain, categoryName);
+                const results = this.parseDDGHtml(html, siteDomain, targetCategory);
                 if (results && results.length > 0) {
                     logger.info(`[SCRAPER] DuckDuckGo live search returned ${results.length} results for "${query}" on site "${siteDomain}"`, 'AGGREGATOR_SCRAPER');
                     return results;
@@ -81,7 +70,7 @@ export const searchScraper = {
         }
         
         logger.info(`[SCRAPER] Falling back to local approved feed for: "${query}" under domain "${siteDomain}"`, 'AGGREGATOR_SCRAPER');
-        return this.getApprovedFeedFallback(siteDomain, query, categoryName);
+        return this.getApprovedFeedFallback(siteDomain, query, targetCategory);
     },
 
     getApprovedFeedFallback(siteDomain, query, categoryName) {
@@ -118,15 +107,14 @@ export const searchScraper = {
 
         // Map domains to standard provider names and allowed categories
         const domainMap = {
-            'amazon.in': { name: 'Amazon', categories: ['Electronics', 'Skincare & Beauty', 'Groceries', 'Home & Living', 'Fashion & Apparel', 'Others'] },
-            'flipkart.com': { name: 'Flipkart', categories: ['Electronics', 'Skincare & Beauty', 'Groceries', 'Home & Living', 'Fashion & Apparel', 'Others'] },
-            'myntra.com': { name: 'Myntra', categories: ['Fashion & Apparel', 'Skincare & Beauty'] },
-            'nykaa.com': { name: 'Nykaa', categories: ['Skincare & Beauty'] },
-            'ajio.com': { name: 'Ajio', categories: ['Fashion & Apparel'] },
-            'croma.com': { name: 'Croma', categories: ['Electronics', 'Home & Living'] },
-            'reliancedigital.in': { name: 'Reliance Digital', categories: ['Electronics', 'Home & Living'] }
+            'amazon.in': { name: 'Amazon', categories: ['Electronics', 'Skincare'] },
+            'flipkart.com': { name: 'Flipkart', categories: ['Electronics', 'Skincare'] },
+            'myntra.com': { name: 'Myntra', categories: ['Skincare'] },
+            'nykaa.com': { name: 'Nykaa', categories: ['Skincare'] },
+            'croma.com': { name: 'Croma', categories: ['Electronics'] },
+            'reliancedigital.in': { name: 'Reliance Digital', categories: ['Electronics'] }
         };
-        const config = domainMap[siteDomain] || { name: 'Generic', categories: [] };
+        const config = domainMap[siteDomain] || { name: 'Generic', categories: ['Electronics', 'Skincare'] };
         const sourceName = config.name;
 
         if (config.categories.length > 0) {
@@ -167,6 +155,16 @@ export const searchScraper = {
         let match;
         let index = 0;
         
+        // Map domains to categories to ensure we only scrape what makes sense
+        const domainMap = {
+            'myntra.com': ['Skincare'],
+            'nykaa.com': ['Skincare'],
+            'croma.com': ['Electronics'],
+            'reliancedigital.in': ['Electronics']
+        };
+
+        const allowedCategories = domainMap[siteDomain] || ['Electronics', 'Skincare'];
+
         while ((match = resultRegex.exec(html)) !== null && index < 5) {
             let link = match[1];
             let rawTitle = match[2];
@@ -185,6 +183,29 @@ export const searchScraper = {
                 } catch (e) {}
             }
 
+            // Category detection
+            let category = categoryName;
+            const titleLower = title.toLowerCase();
+            const snippetLower = snippet.toLowerCase();
+            
+            if (titleLower.match(/serum|facewash|cream|moisturizer|scrub|toner|shampoo|lotion|ubtan|neem|skincare|beauty|cleanser|spf|sunscreen|ingredient/)) {
+                category = 'Skincare';
+            } else if (titleLower.match(/laptop|computer|phone|camera|keyboard|monitor|cpu|gpu|ram|charger|headphone|mouse|electronics|tv|speaker|console|earbud|airpods/)) {
+                category = 'Electronics';
+            } else {
+                // Heuristic check using snippet as fallback
+                if (snippetLower.match(/serum|cream|moisturizer|skincare/)) {
+                    category = 'Skincare';
+                } else {
+                    category = 'Electronics';
+                }
+            }
+
+            // Skip if this category is not allowed for the given site domain or is generally invalid
+            if (!allowedCategories.includes(category)) {
+                continue;
+            }
+
             // Extract price from snippet and normalize to INR
             let price = 0;
             let originalPrice = 0;
@@ -193,6 +214,7 @@ export const searchScraper = {
             if (priceMatch) {
                 const symbol = priceMatch[1];
                 let val = parseFloat(priceMatch[2].replace(/,/g, ''));
+                // Convert USD/foreign currency if necessary
                 if (symbol === '$' || (val > 0 && val < 2500 && title.toLowerCase().match(/laptop|computer|phone|iphone|console|dyson/))) {
                     val = Math.round(val * 83.5);
                 }
@@ -201,10 +223,10 @@ export const searchScraper = {
             } else {
                 // Heuristic backup price
                 price = parseFloat((150 + (title.length * 7) % 850).toFixed(2));
-                const titleLower = title.toLowerCase();
-                if (titleLower.match(/laptop|macbook/)) {
+                const titleLowerStr = title.toLowerCase();
+                if (titleLowerStr.match(/laptop|macbook/)) {
                     price = 45000 + (title.length * 237) % 35000;
-                } else if (titleLower.match(/phone|iphone|galaxy/)) {
+                } else if (titleLowerStr.match(/phone|iphone|galaxy/)) {
                     price = 15000 + (title.length * 197) % 25000;
                 }
                 originalPrice = parseFloat((price * 1.2).toFixed(2));
@@ -220,23 +242,8 @@ export const searchScraper = {
                 }
             }
 
-            // Category detection fallback
-            let category = categoryName;
-            const titleLower = title.toLowerCase();
-            if (titleLower.match(/laptop|computer|phone|camera|keyboard|monitor|cpu|gpu|ram|charger|headphone|mouse|electronics|tv|speaker/)) {
-                category = 'Electronics';
-            } else if (titleLower.match(/milk|bread|apple|coffee|tea|chocolate|groceries|egg|rice|sugar|snack|fruit|vegetable/)) {
-                category = 'Groceries';
-            } else if (titleLower.match(/shirt|jeans|shoes|jacket|dress|bag|fashion|socks|hat|watch|apparel/)) {
-                category = 'Fashion & Apparel';
-            } else if (titleLower.match(/chair|table|lamp|sofa|bed|pillow|decor|furniture|kitchen|dining/)) {
-                category = 'Home & Living';
-            } else if (titleLower.match(/serum|facewash|cream|moisturizer|scrub|toner|shampoo|lotion|ubtan|neem|skincare|beauty/)) {
-                category = 'Skincare & Beauty';
-            }
-
             // Select image URL
-            const categoryImages = CATEGORY_IMAGES[category] || CATEGORY_IMAGES['Others'];
+            const categoryImages = CATEGORY_IMAGES[category] || CATEGORY_IMAGES['Electronics'];
             const imageIndex = (title.length + index) % categoryImages.length;
             const image = categoryImages[imageIndex];
 
