@@ -12,9 +12,10 @@ const validateSchema = (schema, property = 'body') => {
             next();
         } catch (err) {
             if (err instanceof z.ZodError) {
-                const issues = err.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+                const issueList = err.errors || err.issues || [];
+                const issues = issueList.map(e => `${(e.path || []).join('.')}: ${e.message}`).join(', ');
                 logger.warn(`[VALIDATION FAIL] Invalid input in ${property}: ${issues}`, 'SECURITY');
-                return response.error(res, `Input validation failed: ${issues}`, err.errors, 400);
+                return response.error(res, `Input validation failed: ${issues}`, issueList, 400);
             }
             next(err);
         }
