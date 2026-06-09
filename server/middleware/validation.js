@@ -58,7 +58,7 @@ const productSearchSchema = z.object({
 const reviewSubmissionSchema = z.object({
     product_name: z.string().min(2, 'Product name is required'),
     rating: z.union([z.number(), z.string()]).transform(val => typeof val === 'string' ? parseInt(val, 10) : val).refine(val => val >= 1 && val <= 5, 'Rating must be an integer between 1 and 5'),
-    review_text: z.string().min(5, 'Review text must be at least 5 characters long').max(5000),
+    review_text: z.string().min(2, 'Review text must be at least 2 characters long').max(5000),
     emoji: z.string().min(1, 'Emoji is required'),
     source: z.string().optional().default('Customer'),
     experience_mood: z.string().optional().default('😐 Neutral'),
@@ -67,7 +67,7 @@ const reviewSubmissionSchema = z.object({
     discovery_source: z.string().optional().default('Own Research'),
     confidence_score: z.number().min(0).max(100).optional().default(50),
     image_url: z.string().url('Invalid image URL format').or(z.literal('')).optional(),
-    user_id: z.string().uuid('Invalid user UUID format').nullable().optional()
+    user_id: z.string().nullable().optional()
 });
 
 // 5. Product Comparison Validation Schema
