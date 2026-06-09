@@ -128,9 +128,14 @@ const Home = () => {
         setLoading(true);
         setError('');
         
+        let mappedCategory = category;
+        if (category === 'Skincare & Beauty') mappedCategory = 'Skincare';
+        else if (category === 'Home & Living') mappedCategory = 'Home';
+        else if (category === 'Fashion & Apparel') mappedCategory = 'Fashion';
+        
         let url = `${API_BASE_URL}/api/products/getProducts?limit=24`;
-        if (category && category !== 'All') {
-            url += `&category=${encodeURIComponent(category)}`;
+        if (mappedCategory && mappedCategory !== 'All') {
+            url += `&category=${encodeURIComponent(mappedCategory)}`;
         }
         
         fetch(url)
