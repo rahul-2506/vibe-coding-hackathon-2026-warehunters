@@ -26,71 +26,135 @@ def local_rag_fallback(relevant_kb, matched_products, query):
     # 0. Check for general greetings/small talk first
     greetings = ['hello', 'hi', 'hey', 'greetings', 'sup', 'yo', 'howdy', 'hola', 'whats up', 'hello there', 'hi there', 'hey there']
     if any(g == query_lower or query_lower.startswith(g + ' ') or query_lower.endswith(' ' + g) for g in greetings):
-        return "👋 **Hello! I'm VChat, your Clinical AI Skincare Consultant.**\n\nHow can I help you with your skincare routine today? I can help you find products, compare formulas, check review trust scores, or explain clinical active ingredients like Niacinamide or Salicylic Acid!"
+        return (
+            "### Introduction\n"
+            "👋 **Hello! I'm VChat, your Clinical AI Assistant.**\n\n"
+            "### Main Discussion\n"
+            "How can I help you today? I am trained to assist you with Skincare formulation analysis and Electronics technical specifications comparison.\n\n"
+            "### Point 1\n"
+            "For Skincare, I can analyze ingredients, compare formulations, identify beneficial or harmful components, and recommend products based on your skin concerns.\n\n"
+            "### Point 2\n"
+            "For Electronics, I can compare processing power, RAM, storage, screen specifications, and evaluate value for money.\n\n"
+            "### Conclusion\n"
+            "What product category or query would you like to explore first?"
+        )
 
     # Check for small talk / how are you / who are you
     if any(x in query_lower for x in ["how are you", "how you doing", "hows it going"]):
-        return "😊 **I'm doing fantastic, thank you for asking!**\n\nAs your AI skincare expert, I'm fully charged and ready to analyze formulas, build routines, or audit product reviews. How is your skin feeling today?"
+        return (
+            "### Introduction\n"
+            "😊 **I'm doing fantastic, thank you for asking!**\n\n"
+            "### Main Discussion\n"
+            "As your AI assistant, I'm ready to help you analyze product details, check specifications, or review formulation sheets.\n\n"
+            "### Point 1\n"
+            "I have deep access to catalog databases, ingredient safety profiles, and technical hardware benchmarks.\n\n"
+            "### Point 2\n"
+            "My current operational parameters are optimized to filter out irrelevant information and focus on quality data.\n\n"
+            "### Conclusion\n"
+            "Let me know what you'd like to search or compare today!"
+        )
         
     if any(x in query_lower for x in ["who are you", "what is vchat"]):
-        return "🌟 **I am VChat, your intelligent Clinical AI Skincare Shopping Assistant.**\n\nUnlike standard customer service bots, I have deep access to product databases, chemical ingredient safety profiles, and verified review fraud scanners. Let's find your perfect routine!"
-        
-    if "joke" in query_lower or "laugh" in query_lower:
-        return "🧴 **Here's a quick skincare joke for you:**\n\n*Why did the skin cell go to school?*\n*To get a little brighter, but it ended up getting exfoliated instead!* 💫\n\nHow can I help you brighten your actual routine today?"
+        return (
+            "### Introduction\n"
+            "🌟 **I am VChat, your intelligent AI Shopping & Consultation Assistant.**\n\n"
+            "### Main Discussion\n"
+            "Unlike generic bots, I specialize in two core domains: clinical-grade Skincare and high-performance Electronics.\n\n"
+            "### Point 1\n"
+            "In skincare, I audit ingredients to help match your skin type and concerns without generic marketing buzzwords.\n\n"
+            "### Point 2\n"
+            "In electronics, I parse technical specifications to help you find the best value for your computing or mobile needs.\n\n"
+            "### Conclusion\n"
+            "Let's find your perfect product! Ask me to compare items or explain active parameters."
+        )
 
-    if any(x in query_lower for x in ["thank you", "thanks", "awesome"]):
-        return "💖 **You are very welcome!** It is my absolute pleasure to guide you. Let me know if you want to compare other brands or tweak your current routine steps."
-
-    response_md = ""
+    response_md = "### Introduction\n"
+    response_md += f"Processing your query: \"{query}\" using our local inventory database.\n\n"
+    
+    response_md += "### Main Discussion\n"
     
     # 1. Product comparison mode
     if len(matched_products) >= 2:
-        response_md += "⚖️ **NEURAL COMPARISON MODE ENABLED (Offline Fallback)**\n\n"
         p1, p2 = matched_products[0], matched_products[1]
-        response_md += f"| Feature | {p1['name']} | {p2['name']} |\n"
-        response_md += "| :--- | :--- | :--- |\n"
-        response_md += f"| Category | {p1['category']} | {p2['category']} |\n"
-        response_md += f"| Base Price | ${p1['price']} | ${p2['price']} |\n"
-        response_md += f"| Core Focus | {p1['explanation'][:50]}... | {p2['explanation'][:50]}... |\n\n"
-        response_md += f"🚀 **Verdict:** {p1['name']} is highly matched for standard clinical categories, while {p2['name']} offers a different active compound profile.\n\n"
-    
+        response_md += f"We compared two matching items: **{p1['name']}** and **{p2['name']}**.\n\n"
+        
+        response_md += "### Point 1\n"
+        response_md += f"**{p1['name']}** (${p1['price']}):\n"
+        if p1['category'] == 'Skincare':
+            response_md += f"- Key Actives: {p1.get('key_ingredients', 'N/A')}\n"
+            response_md += f"- Target Skin Type: {p1.get('skin_type', 'N/A')}\n"
+            response_md += f"- Concerns: {p1.get('concerns', 'N/A')}\n"
+        else:
+            specs = p1.get('specifications_json', {})
+            response_md += f"- Specs: {', '.join([f'{k}: {v}' for k, v in specs.items()][:3])}\n"
+            response_md += f"- Features: {p1.get('technical_features', 'N/A')}\n"
+            
+        response_md += "\n### Point 2\n"
+        response_md += f"**{p2['name']}** (${p2['price']}):\n"
+        if p2['category'] == 'Skincare':
+            response_md += f"- Key Actives: {p2.get('key_ingredients', 'N/A')}\n"
+            response_md += f"- Target Skin Type: {p2.get('skin_type', 'N/A')}\n"
+            response_md += f"- Concerns: {p2.get('concerns', 'N/A')}\n"
+        else:
+            specs = p2.get('specifications_json', {})
+            response_md += f"- Specs: {', '.join([f'{k}: {v}' for k, v in specs.items()][:3])}\n"
+            response_md += f"- Features: {p2.get('technical_features', 'N/A')}\n"
+
+        response_md += "\n### Conclusion\n"
+        response_md += f"Based on specifications, **{p1['name']}** is suitable for users looking for its specific profile, whereas **{p2['name']}** serves as a direct alternative."
+
     # 2. Single product matched
     elif matched_products:
-        best_product = matched_products[0]
-        response_md += f"📦 **INVENTORY SYNERGY: Clinical Match**\n"
-        response_md += f"Found **{best_product['name']}** (${best_product['price']}) in active stock.\n\n"
-        response_md += "✅ **Dermatological Pros:**\n"
-        response_md += f"• Targeted {best_product['category']} action.\n"
-        if "salicylic" in best_product['explanation'].lower():
-            response_md += "• Deep pore keratolytic cleansing using BHA.\n"
-        if "neem" in best_product['explanation'].lower():
-            response_md += "• Organic antimicrobial defense preserving dermal acidic mantle.\n"
-        if "ubtan" in best_product['explanation'].lower():
-            response_md += "• Brightens skin using traditional turmeric extracts.\n"
+        p = matched_products[0]
+        response_md += f"Found 1 direct match in inventory: **{p['name']}** (${p['price']}).\n\n"
         
-        response_md += "\n⚠️ **Clinical Cautions:**\n"
-        response_md += "• Introduce gradually to assess barrier tolerance.\n"
-        response_md += "• Apply high-SPF sunscreen daily during active treatment.\n\n"
+        response_md += "### Point 1\n"
+        response_md += "**Product Attributes:**\n"
+        if p['category'] == 'Skincare':
+            response_md += f"- Active Ingredients: {p.get('ingredients', 'N/A')}\n"
+            response_md += f"- Key Actives: {p.get('key_ingredients', 'N/A')}\n"
+            response_md += f"- Concerns Addressed: {p.get('concerns', 'N/A')}\n"
+        else:
+            specs = p.get('specifications_json', {})
+            spec_details = ", ".join([f"{k}: {v}" for k, v in specs.items()])
+            response_md += f"- Hardware Specs: {spec_details}\n"
+            response_md += f"- Features: {p.get('technical_features', 'N/A')}\n"
+            
+        response_md += "\n### Point 2\n"
+        response_md += "**Clinical / Performance Analysis:**\n"
+        if p['category'] == 'Skincare':
+            response_md += "• Grounded formulation matches the stated skincare concerns. Pairs well with a daily broad-spectrum sunscreen.\n"
+        else:
+            response_md += "• Hardware features indicate stable, professional-grade output aligned with expectations.\n"
+            
+        response_md += "\n### Conclusion\n"
+        response_md += f"We highly recommend **{p['name']}** based on these verified database parameters."
 
-    # 3. Scientific knowledge base grounding
-    if relevant_kb:
-        response_md += "🔬 **NEURAL SEARCH: Scientific Grounding**\n"
-        for kb in relevant_kb:
-            response_md += f"**{kb['topic']}**: {kb['content']}\n"
-        response_md += "\n"
-    
-    if not response_md:
-        response_md = f"🔍 **NEURAL SCAN COMPLETE:** I currently have no direct matching scientific entries for your query about \"{query}\". Please ask about active ingredients like Salicylic Acid, Neem, or Ubtan."
+    # 3. Scientific knowledge base grounding (but no direct product)
     else:
-        response_md += "🤖 **SYSTEM VERDICT:** Fully aligned with local skincare intelligence databases (LLM offline fallback mode active)."
+        response_md += "We found relevant articles in our knowledge base but no matching direct products in inventory.\n\n"
+        
+        response_md += "### Point 1\n"
+        if relevant_kb:
+            kb = relevant_kb[0]
+            response_md += f"**Knowledge Article - {kb['topic']}**:\n{kb['content']}\n"
+        else:
+            response_md += "No direct knowledge article match.\n"
+            
+        response_md += "\n### Point 2\n"
+        if len(relevant_kb) >= 2:
+            kb2 = relevant_kb[1]
+            response_md += f"**Alternative Reference - {kb2['topic']}**:\n{kb2['content']}\n"
+        else:
+            response_md += "No secondary article reference found.\n"
+            
+        response_md += "\n### Conclusion\n"
+        response_md += "Please modify your search or ask about active ingredients (like Niacinamide or Salicylic Acid) or laptop hardware configurations."
 
     return response_md
 
 
 def execute_gemini_rag(gemini_client, model_name, system_prompt, user_prompt):
-    """
-    Sub-function for thread execution
-    """
     chat_session = gemini_client.chats.create(
         model=model_name,
         config={'system_instruction': system_prompt}
@@ -100,9 +164,6 @@ def execute_gemini_rag(gemini_client, model_name, system_prompt, user_prompt):
 
 
 def execute_groq_rag(groq_client, model_name, system_prompt, user_prompt):
-    """
-    Sub-function for thread execution
-    """
     chat_completion = groq_client.chat.completions.create(
         messages=[
             {"role": "system", "content": system_prompt},
@@ -114,9 +175,6 @@ def execute_groq_rag(groq_client, model_name, system_prompt, user_prompt):
 
 
 def execute_openai_request(api_key: str, system_prompt: str, user_prompt: str) -> str:
-    """
-    Direct HTTPS proxy to OpenAI completions endpoint using request payloads.
-    """
     import requests
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
@@ -145,73 +203,106 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
     query_lower = query.lower()
     
     try:
-        # 1. Fetch inventories and databases from Supabase
+        # 1. Fetch inventories and databases from Supabase with relational details joins
         try:
             knowledge = query_supabase("knowledge_base")
-            products = query_supabase("products")
+            raw_products = query_supabase("products", {"select": "*,skincare_details(*),electronics_details(*)"})
+            
+            # Flatten product rows in Python
+            products = []
+            for r in raw_products:
+                cat = r.get("category", "")
+                if cat == 'Skincare & Beauty':
+                    cat = 'Skincare'
+                
+                # Filter out unsupported categories at RAG level
+                if cat != 'Skincare' and cat != 'Electronics':
+                    continue
+                
+                skincare = r.get("skincare_details", {})
+                if isinstance(skincare, list) and len(skincare) > 0:
+                    skincare = skincare[0]
+                elif not isinstance(skincare, dict):
+                    skincare = {}
+                    
+                electronics = r.get("electronics_details", {})
+                if isinstance(electronics, list) and len(electronics) > 0:
+                    electronics = electronics[0]
+                elif not isinstance(electronics, dict):
+                    electronics = {}
+
+                p = {
+                    "id": r.get("id"),
+                    "title": r.get("title") or r.get("name") or "Product",
+                    "name": r.get("title") or r.get("name") or "Product",
+                    "category": cat,
+                    "price": r.get("price") or r.get("price_inr") or 0,
+                    "brand": r.get("brand") or "Generic",
+                    "description": r.get("description") or "",
+                    "explanation": r.get("description") or "",
+                    # Skincare details
+                    "ingredients": skincare.get("ingredients") or "",
+                    "key_ingredients": skincare.get("key_ingredients") or "",
+                    "skin_type": skincare.get("skin_type") or "",
+                    "concerns": skincare.get("concerns") or "",
+                    # Electronics details
+                    "specifications_json": electronics.get("specifications_json") or {},
+                    "technical_features": electronics.get("technical_features") or ""
+                }
+                products.append(p)
                 
             if not knowledge:
                 raise ValueError("Knowledge base returns empty or is unreachable")
         except Exception as db_err:
-            print(f"[CHATBOT SERVICE] Supabase offline or failed to fetch: {db_err}. Triggering offline static catalog fallback.")
+            print(f"[CHATBOT SERVICE] Supabase query failed: {db_err}. Triggering offline static catalog fallback.")
             knowledge = [
                 {
                     "topic": "Salicylic Acid",
-                    "sub_topic": "Mechanism of Action",
-                    "content": "Salicylic Acid is a beta hydroxy acid (BHA) that works by dissolving skin debris that clogs pores, acting as an anti-inflammatory and helping red, inflamed pimples and pustules go away faster.",
-                    "keywords": "salicylic acid, bha, pores, acne, exfoliant"
+                    "content": "Salicylic Acid is a beta hydroxy acid (BHA) that works by dissolving skin debris that clogs pores, acting as an anti-inflammatory to clear blackheads and prevent acne outbreaks.",
+                    "keywords": "salicylic acid, BHA"
                 },
                 {
-                    "topic": "Neem Extracts",
-                    "sub_topic": "Antimicrobial Benefits",
-                    "content": "Neem contains active compounds like nimbin and azadirachtin which exhibit strong antibacterial, antifungal, and anti-inflammatory properties, making it highly effective against acne-causing bacteria without stripping natural skin moisture.",
-                    "keywords": "neem, antibacterial, antimicrobial, acne"
-                },
-                {
-                    "topic": "Ubtan",
-                    "sub_topic": "Traditional Skin Brightening",
-                    "content": "Traditional Ubtan formulation combining turmeric, saffron, and sandalwood extracts helps gently exfoliate the skin, reduce hyperpigmentation, combat dullness, and improve overall skin texture and tone.",
-                    "keywords": "ubtan, turmeric, saffron, bright, glow"
+                    "topic": "Niacinamide",
+                    "content": "Niacinamide is a form of vitamin B3 that regulates sebum production, strengthens the lipid barrier, reduces skin redness, and minimizes the appearance of pores.",
+                    "keywords": "niacinamide, vitamin B3"
                 }
             ]
             products = [
                 {
-                    "id": 101,
-                    "title": "Salicylic Acid Cleanser",
-                    "name": "Salicylic Acid Cleanser",
+                    "id": 1,
+                    "title": "Minimalist 2% Salicylic Acid Serum",
+                    "name": "Minimalist 2% Salicylic Acid Serum",
                     "category": "Skincare",
-                    "price": 12.99,
-                    "explanation": "A deep-cleansing BHA formula designed to penetrate pores, clear blackheads, and regulate excess sebum secretion.",
-                    "description": "A deep-cleansing BHA formula designed to penetrate pores, clear blackheads, and regulate excess sebum secretion."
+                    "price": 599,
+                    "brand": "Minimalist",
+                    "explanation": "A gentle chemical exfoliant that clears blackheads and regulates excess sebum.",
+                    "description": "A gentle chemical exfoliant that clears blackheads and regulates excess sebum.",
+                    "ingredients": "Aloe Barbadensis Leaf Juice, Salicylic Acid, Oligopeptide-10",
+                    "key_ingredients": "Salicylic Acid 2%, Oligopeptide-10",
+                    "skin_type": "Oily, Acne-Prone",
+                    "concerns": "Blackheads, Acne, Clogged Pores"
                 },
                 {
-                    "id": 102,
-                    "title": "Neem & Turmeric Face Wash",
-                    "name": "Neem & Turmeric Face Wash",
-                    "category": "Skincare",
-                    "price": 9.99,
-                    "explanation": "A gentle antibacterial face wash that cleanses skin of impurities and prevents future breakouts without drying.",
-                    "description": "A gentle antibacterial face wash that cleanses skin of impurities and prevents future breakouts without drying."
-                },
-                {
-                    "id": 103,
-                    "title": "Ubtan Skin Radiance Scrub",
-                    "name": "Ubtan Skin Radiance Scrub",
-                    "category": "Skincare",
-                    "price": 14.99,
-                    "explanation": "An organic brightening scrub crafted with turmeric, saffron, and walnut shell powder to gently polish and reveal glowing skin.",
-                    "description": "An organic brightening scrub crafted with turmeric, saffron, and walnut shell powder to gently polish and reveal glowing skin."
+                    "id": 2,
+                    "title": "Dell XPS 13 Laptop",
+                    "name": "Dell XPS 13 Laptop",
+                    "category": "Electronics",
+                    "price": 119990,
+                    "brand": "Dell",
+                    "explanation": "Precision crafted ultraportable laptop powered by Intel Core Ultra 7.",
+                    "description": "Precision crafted ultraportable laptop powered by Intel Core Ultra 7.",
+                    "specifications_json": {"Processor": "Intel Core Ultra 7", "RAM": "16GB LPDDR5x"},
+                    "technical_features": "CNC Aluminum Chassis, InfinityEdge display"
                 }
             ]
 
-        # 2. SEMANTIC RETRIEVAL (TF-IDF Matching)
+        # 2. SEMANTIC RETRIEVAL (TF-IDF Matching) over KB
         kb_texts = []
         for k in knowledge:
             topic = k.get('topic', k.get('title', ''))
-            sub_topic = k.get('sub_topic', k.get('category', ''))
             content = k.get('content', '')
             keywords = k.get('keywords', '')
-            kb_texts.append(f"{topic} {sub_topic} {content} {keywords}".lower())
+            kb_texts.append(f"{topic} {content} {keywords}".lower())
 
         kb_vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(1, 3))
         kb_matrix = kb_vectorizer.fit_transform(kb_texts)
@@ -222,7 +313,7 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
         top_indices = np.argsort(similarities)[::-1]
         relevant_kb = [knowledge[i] for i in top_indices if similarities[i] > threshold]
         
-        # Keyword Fallback if semantic overlap is sparse
+        # Keyword Fallback for KB
         if not relevant_kb:
             query_words = set(query_lower.split())
             for k in knowledge:
@@ -235,8 +326,13 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
                     if len(relevant_kb) >= 2:
                         break
 
-        # 3. PRODUCT MATCHING
-        prod_texts = [f"{p['title'] or p['name']} {p['category']} {p['explanation'] or p['description']}".lower() for p in products]
+        # 3. PRODUCT MATCHING (TF-IDF Matching)
+        prod_texts = []
+        for p in products:
+            spec_str = json.dumps(p.get("specifications_json", {}))
+            text = f"{p['name']} {p['category']} {p['brand']} {p['explanation']} {p.get('ingredients')} {p.get('key_ingredients')} {p.get('skin_type')} {p.get('concerns')} {spec_str} {p.get('technical_features')}".lower()
+            prod_texts.append(text)
+
         prod_vectorizer = TfidfVectorizer(stop_words='english', ngram_range=(1, 2))
         prod_matrix = prod_vectorizer.fit_transform(prod_texts)
         prod_query_vec = prod_vectorizer.transform([query_lower])
@@ -245,11 +341,6 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
         matched_indices = np.where(prod_similarities > 0.05)[0]
         matched_products = [products[i] for i in matched_indices]
         matched_products = sorted(matched_products, key=lambda x: prod_similarities[products.index(x)], reverse=True)
-        
-        # Standardize product naming for downstream tasks
-        for p in matched_products:
-            if 'name' not in p or not p['name']:
-                p['name'] = p.get('title', 'Skincare Product')
 
         # 4. LLM API Synthesis with Timeout Control
         context = "SCIENTIFIC DATA:\n"
@@ -259,37 +350,44 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
             context += f"- {topic}: {content}\n"
         
         context += "\nPRODUCT INVENTORY:\n"
-        for p in matched_products[:3]:
-            context += f"- {p['name']} (${p['price']}): {p['explanation'] or p['description']}\n"
+        for p in matched_products[:4]:
+            context += f"- ID: {p['id']}, Name: {p['name']}, Category: {p['category']}, Brand: {p['brand']}, Price: INR {p['price']}\n"
+            context += f"  Description: {p['explanation']}\n"
+            if p['category'] == 'Skincare':
+                context += f"  Ingredients: {p.get('ingredients')}\n"
+                context += f"  Key Ingredients: {p.get('key_ingredients')}\n"
+                context += f"  Skin Type: {p.get('skin_type')}\n"
+                context += f"  Concerns: {p.get('concerns')}\n"
+            elif p['category'] == 'Electronics':
+                context += f"  Specifications: {json.dumps(p.get('specifications_json'))}\n"
+                context += f"  Technical Features: {p.get('technical_features')}\n"
 
-        system_prompt = """You are the Lead Clinical Skincare Expert & Shopping Assistant for V-CHAT.
-        Your personality is 50% ChatGPT (incredibly human-like, conversational, witty, empathetic), 25% Expert Skincare Consultant, and 25% Intelligent Shopping Assistant.
+        system_prompt = """You are the Lead Clinical Shopping & Product Consultation Assistant for V-CHAT.
+        You support only two categories: Skincare and Electronics. All other categories are disabled.
         
         INSTRUCTIONS:
-        1. **Talk like a human**: Speak naturally, vary your opening sentences, use active empathy. NEVER sound robotic, machine-like, or scripted.
-        2. **Grounded clinical logic**: Strictly ground recommendations and science in the provided SCIENTIFIC DATA and PRODUCT INVENTORY. If recommending products, use their exact names and prices.
-        3. **Missing Profile Data**: If the user is asking for product recommendations or a routine but has not mentioned their skin type, concern, or budget, ask helpful, friendly step-by-step follow-up questions instead of guessing.
-        4. **Tone**: Curiously friendly, authoritative yet completely approachable. Use premium terminologies naturally (e.g. "stratum corneum," "sebum regulation," "lipid barrier") but keep it conversational.
-        5. **Small Talk & Humor**: Handle small talk, humor, jokes, and greetings naturally. Do not force product recommendations into casual small talk.
-        6. **Formatting Structure**: You MUST format your response strictly using the following Markdown headers and section layout:
+        1. **Talk like a human**: Speak naturally, vary your opening sentences, and display warm conversational intelligence.
+        2. **Clinical and Specification-based Logic**:
+           - For Skincare: Analyze active formulation chemical ingredients, identify harmful/beneficial substances, check skin types compatibility, and map to skincare concerns.
+           - For Electronics: Analyze processing chips, RAM configurations, screen qualities, battery capacities, and assess value-for-money.
+        3. **Never make generic recommendations**: You MUST construct your reasoning and justifications strictly using the attributes defined in the database (ingredients, skin type, concerns, specifications, technical features). Do not invent features or properties.
+        4. **Missing Profile Data**: If the user asks for a recommendation but has not specified crucial parameters (e.g., skin type/concern for skincare, or budget/use-case for electronics), ask friendly follow-up questions instead of guessing.
+        5. **Formatting Structure**: You MUST format your response strictly using the following Markdown headers and section layout. Failure to use this exact heading structure is unacceptable:
            
            ### Introduction
-           [Brief overview of the topic or problem]
+           [Brief conversational overview or greeting acknowledging user needs]
            
            ### Main Discussion
-           [Detailed explanation, features, analysis, or conversation content]
+           [Detailed comparison, product analysis, or explanation of ingredients/specifications]
            
            ### Point 1
-           [First major point or explanation]
+           [First major analysis or recommendation point with specific details from database]
            
            ### Point 2
-           [Second major point or explanation]
-           
-           ### Example / Demonstration
-           [Optional examples or scenarios, omit this section if not relevant]
+           [Second major analysis or recommendation point with specific details from database]
            
            ### Conclusion
-           [Final summary, recommendation, or closing statement]
+           [Final professional verdict, advice, routine structure, or follow-up question]
         """
         
         user_prompt = f"USER QUESTION: \"{query}\"\n\n--- CONTEXTUAL DATASETS ---\n{context}"
@@ -335,13 +433,11 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
             except Exception as e:
                 print(f"[CHATBOT SERVICE] Groq RAG attempt timed out or failed: {e}. Executing local fallback.")
 
-        # 5. Local synthesis fallback if all APIs are offline
-        print("[CHATBOT SERVICE] Triggering high-fidelity local fallback synthesis...")
+        # Local synthesis fallback
+        print("[CHATBOT SERVICE] Triggering category-aware local fallback synthesis...")
         return local_rag_fallback(relevant_kb, matched_products, query)
 
     except Exception as general_err:
         print(f"[CHATBOT SERVICE] Fatal error during perform_rag_chat: {general_err}")
         traceback.print_exc()
         return "An internal server error occurred while processing your query. Please check database tables."
-    finally:
-        pass

@@ -23,7 +23,8 @@ async function getProductsTableColumns() {
     dbProductsColumns = new Set([
         'id', 'name', 'category', 'brand', 'description', 'created_at', 'images', 
         'trust_score', 'reviews_count', 'title', 'price', 'rating', 'keywords', 
-        'stock', 'thumbnail', 'image_url', 'review_count', 'embedding'
+        'stock', 'thumbnail', 'image_url', 'review_count', 'embedding',
+        'price_inr', 'price_original', 'currency', 'last_updated', 'product_url', 'source'
     ]);
     return dbProductsColumns;
 }
@@ -44,18 +45,12 @@ function filterObjectByColumns(obj, columns) {
 function getCategoryAwareSummary(category, title, brand, originalDescription) {
     const cleanDesc = originalDescription ? originalDescription.trim() : '';
     let hook = '';
-    if (category === 'Skincare & Beauty') {
-        hook = `Dermatologist tested and formulated with clinically proven active botanical extracts to optimize cellular repair and structural elasticity.`;
+    if (category === 'Skincare') {
+        hook = `Dermatologist tested and formulated with clinically proven active botanical active ingredients to optimize cellular repair, hydration, and skin barrier resilience.`;
     } else if (category === 'Electronics') {
-        hook = `Engineered for professional productivity, utilizing energy-efficient processing architectures to deliver fast speeds and a clean user experience.`;
-    } else if (category === 'Groceries') {
-        hook = `100% natural and sustainably sourced. Expertly harvested at peak freshness to retain core vitamins and authentic rich flavor.`;
-    } else if (category === 'Home & Living') {
-        hook = `Features highly durable structural reinforcement and a balanced modern minimalist shape, perfect for premium room layouts.`;
-    } else if (category === 'Fashion & Apparel') {
-        hook = `Tailored with reinforced double stitching and hyper-breathable smart fibers, ensuring a lasting and comfortable fit.`;
+        hook = `Engineered for professional productivity, utilizing energy-efficient processing architectures to deliver fast speeds, stable performance, and a clean user experience.`;
     } else {
-        hook = `Manufactured under strict ISO quality standards to ensure reliable longevity and consistent performance.`;
+        hook = `Manufactured under strict quality standards to ensure reliable longevity and consistent performance.`;
     }
     
     return `${cleanDesc} ${hook}`;
@@ -106,14 +101,7 @@ const SYNONYMS = {
     'pc': ['laptop', 'desktop', 'computer'],
     'phone': ['phone', 'mobile', 'smartphone', 'iphone', 'galaxy', 'oneplus', 'nord', 'cellphone'],
     'mobile': ['phone', 'mobile', 'smartphone', 'iphone', 'galaxy', 'oneplus', 'nord', 'cellphone'],
-    'skincare': ['wash', 'cleanser', 'serum', 'cream', 'ordinary', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'derma', 'toner', 'lotion'],
-    'beauty': ['wash', 'cleanser', 'serum', 'cream', 'ordinary', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'derma', 'toner', 'lotion'],
-    'coffee': ['nescafe', 'gold blend', 'coffee'],
-    'tea': ['tata', 'tea', 'gold leaf'],
-    'biscuit': ['oreo', 'cookies'],
-    'cookie': ['oreo', 'cookies'],
-    'butter': ['ghee', 'amul'],
-    'tv': ['philips', 'appliances', 'electronics'],
+    'skincare': ['wash', 'cleanser', 'serum', 'cream', 'ordinary', 'cetaphil', 'cerave', 'minimalist', 'himalaya', 'derma', 'toner', 'lotion', 'spf', 'sunscreen'],
     'vacuum': ['dyson', 'cleaner']
 };
 
@@ -140,7 +128,6 @@ function calculateSearchScore(product, queryTerms, rawQuery) {
 
     // Check query terms
     for (const term of queryTerms) {
-        // 1. Direct or fuzzy match with title words
         const titleWords = title.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
         for (const word of titleWords) {
             if (word === term || isFuzzyMatch(term, word)) {
@@ -148,7 +135,6 @@ function calculateSearchScore(product, queryTerms, rawQuery) {
             }
         }
 
-        // 2. Direct or fuzzy match with brand
         const brandWords = brand.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
         for (const word of brandWords) {
             if (word === term || isFuzzyMatch(term, word)) {
@@ -156,19 +142,16 @@ function calculateSearchScore(product, queryTerms, rawQuery) {
             }
         }
 
-        // 3. Category & Subcategory matching
         if (category.includes(term) || subcategory.includes(term)) {
             score += 30;
         }
 
-        // 4. Keywords matching
         for (const kw of keywords) {
             if (kw === term || isFuzzyMatch(term, kw)) {
                 score += 20;
             }
         }
 
-        // 5. Semantic matching
         if (SYNONYMS[term]) {
             for (const syn of SYNONYMS[term]) {
                 if (title.includes(syn) || brand.includes(syn) || category.includes(syn) || keywords.includes(syn)) {
@@ -177,24 +160,20 @@ function calculateSearchScore(product, queryTerms, rawQuery) {
             }
         }
 
-        // 6. Description match
         if (desc.includes(term)) {
             score += 10;
         }
     }
 
-    // Boost based on quality, popularity, value for money, and active availability
     if (score > 0) {
         const ratingBoost = (product.rating || 0) * 5; // up to 25 points
         const popularityBoost = Math.min(25, (product.reviewCount || product.review_count || 0) * 0.05); // up to 25 points
         
-        // Value for money boost based on discount percent
         const price = Number(product.price || 0);
         const originalPrice = Number(product.originalPrice || product.original_price || price);
         const discountPercent = originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : 0;
         const valueBoost = Math.min(15, discountPercent * 0.3); // up to 15 points
         
-        // Active availability boost
         const isAvailable = product.availability === 'In Stock' || (product.stock && Number(product.stock) > 0);
         const availabilityBoost = isAvailable ? 10 : 0;
 
@@ -204,7 +183,7 @@ function calculateSearchScore(product, queryTerms, rawQuery) {
     return score;
 }
 
-function normalizePriceToINR(price, title, source = '') {
+function normalizePriceToINR(price, title) {
     let val = Number(price || 0);
     let isUSD = false;
     const titleLower = title.toLowerCase();
@@ -226,7 +205,7 @@ function normalizePriceToINR(price, title, source = '') {
 }
 
 /**
- * Generates 1020 highly realistic product items deterministically across 6 categories using approved feeds.
+ * Generates highly realistic product items deterministically across approved categories.
  */
 export function buildMegaCatalog() {
     const products = [];
@@ -255,8 +234,10 @@ export function buildMegaCatalog() {
             description: p.description,
             category: p.category,
             price: p.price,
+            price_inr: p.price,
             original_price: p.originalPrice || p.price,
-            current_price: p.price,
+            price_original: p.originalPrice || p.price,
+            currency: 'INR',
             rating: p.rating,
             brand: p.brand,
             stock: 50,
@@ -279,12 +260,11 @@ export function buildMegaCatalog() {
 export const productService = {
     /**
      * Retrieves all products, pulling from Supabase, or memory fallback.
-     * Incorporates automatic self-healing seeder check to populate 1020 products if empty.
+     * Incorporates automatic self-healing seeder check to populate approved categories.
      */
     async getAllProducts() {
         const now = Date.now();
         
-        // 1. Return memory cache if valid
         if (inMemoryCache && (now - lastCacheTime < CACHE_DURATION)) {
             return inMemoryCache;
         }
@@ -302,107 +282,98 @@ export const productService = {
 
             console.log(`[productService] Database catalog size is: ${count}`);
 
-            // 2. Self-healing check: if count !== approvedFeed.length, trigger automated seed!
+            // Self-healing seeder check
             if (count !== approvedFeed.length) {
                 console.log(`[productService SEED] Product catalog size (${count}) does not match target threshold of ${approvedFeed.length}. Initiating self-healing seed...`);
                 
-                // Clear existing records to ensure catalog consistency
+                // Truncate tables (cascades automatically if relationships are ON DELETE CASCADE)
                 const { error: delErr } = await supabaseAdmin.from('products').delete().neq('id', 0);
                 if (delErr) {
                     console.error('[productService SEED ERROR] Failed to clear products table:', delErr.message);
                     throw delErr;
                 }
                 
-                // Generate and batch-insert
                 const megaCatalog = buildMegaCatalog();
-                const CHUNK_SIZE = 200;
+                const CHUNK_SIZE = 50;
+                const dbColumns = await getProductsTableColumns();
                 
-                try {
-                    const dbColumns = await getProductsTableColumns();
-                    for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
-                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => {
-                            const rawObj = {
-                                name: p.title,
-                                title: p.title,
-                                description: p.description,
-                                category: p.category,
-                                price: p.price,
-                                rating: p.rating,
-                                brand: p.brand,
-                                stock: p.stock,
-                                thumbnail: p.thumbnail,
-                                image_url: p.thumbnail,
-                                images: p.images,
-                                trust_score: p.trust_score,
-                                keywords: p.keywords,
-                                review_count: p.review_count,
-                                reviews_count: p.review_count,
-                                // Pricing metadata fields
-                                current_price: p.current_price,
-                                original_price: p.original_price,
-                                source: p.source,
-                                product_url: p.product_url,
-                                last_price_update: p.last_updated
-                            };
-                            return filterObjectByColumns(rawObj, dbColumns);
-                        });
+                for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
+                    const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => {
+                        const rawObj = {
+                            name: p.title,
+                            title: p.title,
+                            description: p.description,
+                            category: p.category,
+                            price: p.price,
+                            price_inr: p.price_inr,
+                            rating: p.rating,
+                            brand: p.brand,
+                            stock: p.stock,
+                            thumbnail: p.thumbnail,
+                            image_url: p.thumbnail,
+                            images: p.images,
+                            trust_score: p.trust_score,
+                            keywords: p.keywords,
+                            review_count: p.review_count,
+                            reviews_count: p.review_count,
+                            original_price: p.original_price,
+                            price_original: p.price_original,
+                            currency: p.currency,
+                            source: p.source,
+                            product_url: p.product_url,
+                            last_updated: p.last_updated
+                        };
+                        return filterObjectByColumns(rawObj, dbColumns);
+                    });
+                    
+                    console.log(`[productService SEED] Inserting chunk ${i / CHUNK_SIZE + 1} (${chunk.length} items)...`);
+                    const { data: insertedProducts, error: insErr } = await supabaseAdmin
+                        .from('products')
+                        .insert(chunk)
+                        .select('id, title');
+                    
+                    if (insErr) {
+                        console.error('[productService SEED ERROR] Chunk insert failed:', insErr.message);
+                        throw insErr;
+                    }
+
+                    // Seed detail tables for this chunk
+                    if (insertedProducts && insertedProducts.length > 0) {
+                        const skincareDetailsToInsert = [];
+                        const electronicsDetailsToInsert = [];
                         
-                        console.log(`[productService SEED] Inserting chunk ${i / CHUNK_SIZE + 1} of ${Math.ceil(megaCatalog.length / CHUNK_SIZE)} (${chunk.length} items)...`);
-                        const { error: insErr } = await supabaseAdmin.from('products').insert(chunk);
-                        if (insErr) {
-                            throw insErr;
+                        for (const inserted of insertedProducts) {
+                            const feedItem = approvedFeed.find(f => f.title === inserted.title);
+                            if (!feedItem) continue;
+                            
+                            if (feedItem.category === 'Skincare' && feedItem.skincare_details) {
+                                skincareDetailsToInsert.push({
+                                    product_id: inserted.id,
+                                    ...feedItem.skincare_details
+                                });
+                            } else if (feedItem.category === 'Electronics' && feedItem.electronics_details) {
+                                electronicsDetailsToInsert.push({
+                                    product_id: inserted.id,
+                                    ...feedItem.electronics_details
+                                });
+                            }
+                        }
+
+                        if (skincareDetailsToInsert.length > 0) {
+                            const { error: skErr } = await supabaseAdmin.from('skincare_details').insert(skincareDetailsToInsert);
+                            if (skErr) console.error('[productService SEED] Failed to seed skincare details:', skErr.message);
+                        }
+                        if (electronicsDetailsToInsert.length > 0) {
+                            const { error: elErr } = await supabaseAdmin.from('electronics_details').insert(electronicsDetailsToInsert);
+                            if (elErr) console.error('[productService SEED] Failed to seed electronics details:', elErr.message);
                         }
                     }
-                    console.log(`[productService SEED SUCCESS] ${megaCatalog.length} products successfully seeded to Supabase.`);
-                } catch (seedErr) {
-                    console.warn(`[productService SEED WARNING] Seeding failed with error: ${seedErr.message}. Retrying without 'keywords' column...`);
-                    
-                    // Clear products table again to start clean
-                    await supabaseAdmin.from('products').delete().neq('id', 0);
-                    
-                    const dbColumns = await getProductsTableColumns();
-                    const filteredCols = new Set(dbColumns);
-                    filteredCols.delete('keywords');
-                    
-                    for (let i = 0; i < megaCatalog.length; i += CHUNK_SIZE) {
-                        const chunk = megaCatalog.slice(i, i + CHUNK_SIZE).map(p => {
-                            const rawObj = {
-                                name: p.title,
-                                title: p.title,
-                                description: p.description,
-                                category: p.category,
-                                price: p.price,
-                                rating: p.rating,
-                                brand: p.brand,
-                                stock: p.stock,
-                                thumbnail: p.thumbnail,
-                                image_url: p.thumbnail,
-                                images: p.images,
-                                trust_score: p.trust_score,
-                                review_count: p.review_count,
-                                reviews_count: p.review_count,
-                                current_price: p.current_price,
-                                original_price: p.original_price,
-                                source: p.source,
-                                product_url: p.product_url,
-                                last_price_update: p.last_updated
-                            };
-                            return filterObjectByColumns(rawObj, filteredCols);
-                        });
-                        
-                        console.log(`[productService SEED RETRY] Inserting chunk ${i / CHUNK_SIZE + 1} of ${Math.ceil(megaCatalog.length / CHUNK_SIZE)} (${chunk.length} items without keywords)...`);
-                        const { error: insErr } = await supabaseAdmin.from('products').insert(chunk);
-                        if (insErr) {
-                            console.error('[productService SEED ERROR] Seeding without keywords failed:', insErr.message);
-                            throw insErr;
-                        }
-                    }
-                    console.log(`[productService SEED SUCCESS] ${megaCatalog.length} products successfully seeded to Supabase (without keywords).`);
                 }
+                console.log(`[productService SEED SUCCESS] Seeding completed.`);
             }
 
-            // 3. Load full catalog from Supabase via a paginated loop to bypass PostgREST limit of 1000
-            console.log('[productService] Loading products from Supabase database...');
+            // Load all products with detail joins
+            console.log('[productService] Loading products from database...');
             let rows = [];
             let from = 0;
             let to = 999;
@@ -411,7 +382,7 @@ export const productService = {
             while (!finished) {
                 const { data, error } = await supabase
                     .from('products')
-                    .select('*')
+                    .select('*, skincare_details(*), electronics_details(*)')
                     .range(from, to);
                 
                 if (error) {
@@ -438,10 +409,9 @@ export const productService = {
                     const reviewCount = r.review_count || r.reviews_count || Math.floor((r.id * 17) % 180) + 12;
                     const trustScore = r.trust_score || (78 + ((r.id * 7) % 19));
                     
-                    // Determine subcategory if category is 'Skincare & Beauty' or 'Skincare'
                     let subcategory = r.subcategory || null;
                     const catLower = (r.category || '').toLowerCase();
-                    if (!subcategory && (catLower === 'skincare & beauty' || catLower === 'skincare')) {
+                    if (!subcategory && catLower === 'skincare') {
                         const nameLower = (r.title || r.name || '').toLowerCase();
                         if (nameLower.includes('wash') || nameLower.includes('cleanser') || nameLower.includes('cleansing') || nameLower.includes('micellar')) {
                             subcategory = 'Face Wash';
@@ -474,35 +444,48 @@ export const productService = {
                     const matchedApproved = approvedFeed.find(feedItem => feedItem.title === r.title || feedItem.title === r.name);
                     const specifications = matchedApproved ? (matchedApproved.specifications || {}) : {};
 
+                    // Extract and flatten detail tables
+                    const skincare = r.skincare_details ? (Array.isArray(r.skincare_details) ? r.skincare_details[0] : r.skincare_details) : null;
+                    const electronics = r.electronics_details ? (Array.isArray(r.electronics_details) ? r.electronics_details[0] : r.electronics_details) : null;
+
                     return {
                         id: Number(r.id),
                         title: r.title || r.name,
-                        name: r.title || r.name, // frontend compatibility
-                        description: r.description,
+                        name: r.title || r.name, 
+                        description: getCategoryAwareSummary(r.category, r.title || r.name, r.brand, r.description),
                         category: r.category,
                         subcategory: subcategory,
-                        price: Number(r.price),
+                        price: Number(r.price_inr || r.price || 0),
+                        price_inr: Number(r.price_inr || r.price || 0),
+                        original_price: Number(r.price_original || r.original_price || r.price || 0),
+                        price_original: Number(r.price_original || r.original_price || r.price || 0),
+                        currency: r.currency || 'INR',
                         rating: Number(r.rating),
                         brand: r.brand,
                         stock: Number(r.stock),
                         thumbnail: r.thumbnail || r.image_url,
-                        image_url: r.image_url || r.thumbnail, // frontend compatibility
+                        image_url: r.image_url || r.thumbnail, 
                         images: Array.isArray(r.images) ? r.images : (typeof r.images === 'string' ? JSON.parse(r.images) : (r.images || [])),
                         trust_score: Number(trustScore),
                         review_count: Number(reviewCount),
                         keywords: Array.isArray(r.keywords) ? r.keywords : (typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || [])),
-                        // Real-time pricing columns
-                        current_price: Number(r.current_price || r.price || 0),
-                        original_price: Number(r.original_price || r.price || 0),
+                        current_price: Number(r.price_inr || r.price || 0),
                         source: r.source || 'Internal Database',
                         product_url: r.product_url || '',
-                        last_price_update: r.last_price_update || r.last_updated || null,
+                        last_price_update: r.last_updated || null,
                         price_comparison: Array.isArray(r.price_comparison) ? r.price_comparison : (typeof r.price_comparison === 'string' ? JSON.parse(r.price_comparison) : (r.price_comparison || [])),
-                        specifications: specifications
+                        specifications: specifications,
+                        // Relational Details Flattened
+                        ingredients: skincare?.ingredients || '',
+                        key_ingredients: skincare?.key_ingredients || '',
+                        skin_type: skincare?.skin_type || '',
+                        concerns: skincare?.concerns || '',
+                        specifications_json: electronics?.specifications_json || {},
+                        technical_features: electronics?.technical_features || ''
                     };
                 });
                 
-                products.sort((a, b) => a.id - b.id); // Stabilize sorting order
+                products.sort((a, b) => a.id - b.id);
                 
                 auditProductImages(products);
                 inMemoryCache = products;
@@ -517,60 +500,41 @@ export const productService = {
         }
     },
 
-    /**
-     * Retrieves a single product by ID.
-     */
     async getProductById(id) {
         const products = await this.getAllProducts();
         return products.find(p => p.id === Number(id)) || null;
     },
 
-    /**
-     * Retrieves products filtered by category.
-     */
     async getProductsByCategory(categoryName) {
         const products = await this.getAllProducts();
         return products.filter(p => p.category.toLowerCase() === categoryName.toLowerCase());
     },
 
-    /**
-     * Upgraded High-Relevance Weighted Multi-Term Search Engine
-     */
     async searchProducts(query, category, sort, subcategory) {
         let candidates = [];
         
         if (query) {
             console.log(`[productService] Querying aggregator for candidates matching "${query}"...`);
-            // Retrieve results from aggregator (which queries all providers, including live DuckDuckGo search and Internal DB)
             const aggregatorResults = await productAggregator.searchProducts(query, category);
             
-            // Normalize prices in place to INR
             aggregatorResults.forEach(p => {
                 p.price = normalizePriceToINR(p.price, p.title || p.name);
                 if (p.originalPrice) p.originalPrice = normalizePriceToINR(p.originalPrice, p.title || p.name);
             });
 
-            // Filter out internal database / approvedFeed results to prioritize real providers
             const providerResults = aggregatorResults.filter(p => p.source && p.source !== 'Internal Database' && p.source !== 'approvedFeed');
             
             if (providerResults.length > 0) {
-                console.log(`[productService] Prioritizing ${providerResults.length} real provider results over approvedFeed.`);
+                console.log(`[productService] Prioritizing ${providerResults.length} real provider results.`);
                 candidates = providerResults;
             } else {
-                console.log(`[productService] No real provider results. Falling back to internal database.`);
+                console.log(`[productService] No real provider results. Falling back to database.`);
                 candidates = await this.getAllProducts();
             }
         } else {
-            // No query: return database products
             candidates = await this.getAllProducts();
-            // Ensure prices in database products are also normalized (though they should already be in INR)
-            candidates.forEach(p => {
-                p.price = normalizePriceToINR(p.price, p.title || p.name);
-                if (p.originalPrice) p.originalPrice = normalizePriceToINR(p.originalPrice, p.title || p.name);
-            });
         }
 
-        // Apply category / subcategory filtering
         let filtered = candidates;
         if (category && category !== 'All' && category !== '') {
             filtered = filtered.filter(p => p.category.toLowerCase() === category.toLowerCase());
@@ -597,7 +561,6 @@ export const productService = {
                     }
                 }
                 
-                // Sort by relevance score descending
                 scoredProducts.sort((a, b) => {
                     if (b.searchScore !== a.searchScore) {
                         return b.searchScore - a.searchScore;
@@ -615,7 +578,6 @@ export const productService = {
             queryMatched = filtered;
         }
 
-        // Apply sorting
         if (sort) {
             if (sort === 'trust_score') {
                 queryMatched.sort((a, b) => (b.trust_score || 80) - (a.trust_score || 80));
@@ -628,7 +590,6 @@ export const productService = {
             }
         }
 
-        // Deduplicate final results to avoid duplicate products
         const seenIds = new Set();
         const seenTitles = new Set();
         const deduplicated = [];
@@ -642,7 +603,6 @@ export const productService = {
             }
         }
 
-        // Apply diversity re-ranking to prioritize variety at the top
         const diversified = [];
         const deferred = [];
         const brandCounts = {};
@@ -655,7 +615,6 @@ export const productService = {
             brandCounts[brand] = brandCounts[brand] || 0;
             modelGroups[modelKey] = modelGroups[modelKey] || 0;
             
-            // Limit brand to 2 and near-duplicate model to 1 in the initial batch
             if (brandCounts[brand] < 2 && modelGroups[modelKey] < 1) {
                 diversified.push(p);
                 brandCounts[brand]++;
@@ -668,9 +627,6 @@ export const productService = {
         return [...diversified, ...deferred];
     },
 
-    /**
-     * Supports paginated product queries.
-     */
     async getPaginatedProducts({ page = 1, limit = 24, category, subcategory, searchQuery, sort }) {
         let products = await this.searchProducts(searchQuery, category, sort, subcategory);
         

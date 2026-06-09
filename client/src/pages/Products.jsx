@@ -41,13 +41,9 @@ const _getProductSubcategory = (p) => {
 };
 
 const CATEGORY_BRANDS = {
-    'All': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech', 'Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist', 'Nescafe', 'Tata', 'Oreo', 'Amul', 'Philips', 'Dyson', 'IKEA', 'Nike', 'Adidas', 'Levi\'s', 'Uniqlo', 'Moleskine', 'Hydro Flask', 'Manduka'],
-    'Skincare & Beauty': ['Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist'],
-    'Electronics': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech'],
-    'Groceries': ['Nescafe', 'Tata', 'Oreo', 'Amul'],
-    'Home & Living': ['Philips', 'Dyson', 'IKEA'],
-    'Fashion & Apparel': ['Nike', 'Adidas', 'Levi\'s', 'Uniqlo'],
-    'Others': ['Moleskine', 'Hydro Flask', 'Manduka']
+    'All': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech', 'Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist'],
+    'Skincare': ['Cetaphil', 'CeraVe', 'The Ordinary', 'Himalaya', 'The Derma Co', 'Minimalist'],
+    'Electronics': ['Sony', 'Apple', 'Samsung', 'Dell', 'Logitech']
 };
 
 const Products = () => {
@@ -81,12 +77,8 @@ const Products = () => {
     // Standardized Categories
     const categories = [
         'All', 
-        'Skincare & Beauty', 
-        'Electronics', 
-        'Groceries', 
-        'Home & Living', 
-        'Fashion & Apparel', 
-        'Others'
+        'Skincare', 
+        'Electronics'
     ];
 
     // Debounce search query to prevent excessive API requests
@@ -110,7 +102,7 @@ const Products = () => {
             const params = new URLSearchParams();
             if (debouncedQuery) params.append('q', debouncedQuery);
             if (activeCategory !== 'All') params.append('category', activeCategory);
-            if (activeCategory === 'Skincare & Beauty' && activeSubcategory !== 'All') {
+            if (activeCategory === 'Skincare' && activeSubcategory !== 'All') {
                 params.append('subcategory', activeSubcategory);
             }
             if (minPrice) params.append('priceMin', minPrice);
@@ -338,7 +330,7 @@ const Products = () => {
                     <h4 className="filter-title">Departments</h4>
                     <ul className="category-list">
                         {categories.map(cat => {
-                            const isSkincare = cat === 'Skincare & Beauty';
+                            const isSkincare = cat === 'Skincare';
                             return (
                                 <React.Fragment key={cat}>
                                     <li 
@@ -352,7 +344,7 @@ const Products = () => {
                                         <span className="category-name">{cat}</span>
                                     </li>
                                     
-                                    {isSkincare && activeCategory === 'Skincare & Beauty' && (
+                                    {isSkincare && activeCategory === 'Skincare' && (
                                         <ul className="subcategory-list animate-slide-down">
                                             {[
                                                 { name: 'All', icon: '✨' },

@@ -12,7 +12,6 @@ load_dotenv()
 
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 if not SERPAPI_KEY:
-    # Set a dummy key to prevent server crash during offline testing, but raise warning
     print("WARNING: SERPAPI_KEY not set in .env file. Using placeholder key.")
     SERPAPI_KEY = "dummy_key_for_testing"
 
@@ -37,6 +36,48 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
+# ──────────────────────────────────────────────────────────────
+# Robust Request Execution with Retries & Backoff
+# ──────────────────────────────────────────────────────────────
+
+def fetch_url_with_retry(session, url, retries=3, backoff_factor=1.0, timeout=12):
+    """Fetches a URL with a retry mechanism and exponential backoff."""
+    for i in range(retries):
+        try:
+            resp = session.get(url, timeout=timeout, allow_redirects=True)
+            if resp.status_code == 429:
+                # Rate limited, wait and retry
+                time.sleep(backoff_factor * (2 ** i))
+                continue
+            return resp
+        except requests.exceptions.RequestException as e:
+            if i == retries - 1:
+                raise e
+            time.sleep(backoff_factor * (2 ** i))
+    raise requests.exceptions.RequestException(f"Failed to fetch URL after {retries} retries")
+
+# ──────────────────────────────────────────────────────────────
+# Price and Currency Normalization Utility
+# ──────────────────────────────────────────────────────────────
+
+def normalize_price_inr(raw_value, currency_symbol="₹"):
+    """
+    Normalizes a scraped price value into INR.
+    Converts foreign currencies (e.g. USD) to INR (1 USD = 83.5 INR).
+    """
+    if raw_value is None:
+        return None, None, "INR"
+    
+    val = float(raw_value)
+    if currency_symbol == "$" or currency_symbol.upper() == "USD":
+        return int(round(val * 83.5)), val, "USD"
+    
+    # Heuristic: if price is very low for typical high-end electronics, assume it was scraped as USD
+    # (e.g. an iPhone listed at 999 instead of 99900)
+    if 0 < val < 2500 and currency_symbol != "₹":
+        return int(round(val * 83.5)), val, "USD"
+        
+    return int(round(val)), val, "INR"
 
 # ──────────────────────────────────────────────────────────────
 # STEP 1: SerpAPI — Find Exact Product URLs
@@ -137,11 +178,12 @@ def scrape_amazon_price(url: str) -> dict:
     try:
         session = requests.Session()
         session.headers.update(HEADERS)
-        resp = session.get(url, timeout=12)
+        resp = fetch_url_with_retry(session, url)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
         price = None
+        currency_symbol = "₹"
 
         # Selector 1: main price whole
         tag = soup.select_one("span.a-price-whole")
@@ -177,6 +219,10 @@ def scrape_amazon_price(url: str) -> dict:
                     price = int(float(meta["content"]))
                 except ValueError:
                     pass
+                
+            currency_meta = soup.find("meta", {"property": "product:price:currency"})
+            if currency_meta and currency_meta.get("content"):
+                currency_symbol = currency_meta["content"]
 
         # Selector 5: regex on raw HTML (last resort)
         if not price:
@@ -191,7 +237,7 @@ def scrape_amazon_price(url: str) -> dict:
         mrp = None
         mrp_tag = soup.select_one("span.a-price.a-text-price span.a-offscreen")
         if mrp_tag:
-            raw_mrp = mrp_tag.get_text(strip=True).replace("₹", "").replace(",", "").strip()
+            raw_mrp = mrp_tag.get_text(strip=True).replace("₹", "").replace("$", "").replace(",", "").strip()
             try:
                 mrp = int(float(raw_mrp))
             except ValueError:
@@ -210,15 +256,22 @@ def scrape_amazon_price(url: str) -> dict:
             if match:
                 rating = float(match.group(1))
 
+        # Normalize currency and price
+        price_inr, price_original, currency = normalize_price_inr(price, currency_symbol)
+        mrp_inr, _, _ = normalize_price_inr(mrp, currency_symbol)
+
         return {
             "platform": "amazon",
             "url": url,
             "title": title,
-            "price": price,
-            "mrp": mrp,
+            "price": price_inr,  # Backward compatibility
+            "price_inr": price_inr,
+            "price_original": price_original,
+            "currency": currency,
+            "mrp": mrp_inr,
             "rating": rating,
-            "currency": "INR",
-            "symbol": "₹",
+            "symbol": "₹" if currency == "INR" else "$",
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
     except requests.exceptions.HTTPError as e:
@@ -226,7 +279,7 @@ def scrape_amazon_price(url: str) -> dict:
             "platform": "amazon",
             "url": url,
             "price": None,
-            "error": f"HTTP {e.response.status_code} - Amazon blocked this request (try from localhost)",
+            "error": f"HTTP {e.response.status_code} - Amazon blocked this request",
         }
     except Exception as e:
         return {"platform": "amazon", "url": url, "price": None, "error": str(e)}
@@ -237,11 +290,12 @@ def scrape_flipkart_price(url: str) -> dict:
     try:
         session = requests.Session()
         session.headers.update(HEADERS)
-        resp = session.get(url, timeout=12, allow_redirects=True)
+        resp = fetch_url_with_retry(session, url)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
         price = None
+        currency_symbol = "₹"
 
         # Selector 1: Nx9bqj (2024 Flipkart layout)
         tag = soup.select_one("div.Nx9bqj")
@@ -329,15 +383,21 @@ def scrape_flipkart_price(url: str) -> dict:
             except ValueError:
                 pass
 
+        price_inr, price_original, currency = normalize_price_inr(price, currency_symbol)
+        mrp_inr, _, _ = normalize_price_inr(mrp, currency_symbol)
+
         return {
             "platform": "flipkart",
             "url": url,
             "title": title,
-            "price": price,
-            "mrp": mrp,
+            "price": price_inr,  # Backward compatibility
+            "price_inr": price_inr,
+            "price_original": price_original,
+            "currency": currency,
+            "mrp": mrp_inr,
             "rating": rating,
-            "currency": "INR",
             "symbol": "₹",
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
     except requests.exceptions.HTTPError as e:
@@ -400,18 +460,38 @@ def search_and_scrape(
         amz_search = serpapi_amazon_url(product)
         if amz_search.get("url"):
             scraped = scrape_amazon_price(amz_search["url"])
+            
+            # Strict validation: verify scraped or SerpAPI results have a valid title and price
+            # Skip/reject if it's completely empty/garbage
+            if not scraped.get("title") and amz_search.get("title"):
+                scraped["title"] = amz_search["title"]
+
             # If SerpAPI already gave us price from shopping, use as fallback
-            if not scraped.get("price") and amz_search.get("serpapi_price"):
+            if not scraped.get("price_inr") and amz_search.get("serpapi_price"):
                 try:
-                    raw = str(amz_search["serpapi_price"]).replace("₹", "").replace(",", "").strip()
-                    scraped["price"] = int(float(raw))
+                    raw = str(amz_search["serpapi_price"]).replace("₹", "").replace("$", "").replace(",", "").strip()
+                    val = float(raw)
+                    # Infer symbol from string
+                    sym = "$" if "$" in str(amz_search["serpapi_price"]) else "₹"
+                    price_inr, price_original, currency = normalize_price_inr(val, sym)
+                    scraped["price"] = price_inr
+                    scraped["price_inr"] = price_inr
+                    scraped["price_original"] = price_original
+                    scraped["currency"] = currency
                     scraped["price_source"] = "serpapi"
                 except ValueError:
                     pass
-            scraped["discount_percent"] = calc_discount(scraped.get("price"), scraped.get("mrp"))
+
+            # Strict validation check
+            if not scraped.get("price_inr") or not scraped.get("title"):
+                scraped["error"] = "Invalid scraped data: title or price missing"
+                scraped["price_inr"] = None
+                scraped["price"] = None
+
+            scraped["discount_percent"] = calc_discount(scraped.get("price_inr"), scraped.get("mrp"))
             response["amazon"] = {**amz_search, **scraped}
         else:
-            response["amazon"] = {"error": amz_search.get("error"), "url": None, "price": None}
+            response["amazon"] = {"error": amz_search.get("error"), "url": None, "price": None, "price_inr": None}
 
     # Small delay between requests
     if platform == "both":
@@ -422,14 +502,24 @@ def search_and_scrape(
         fk_search = serpapi_flipkart_url(product)
         if fk_search.get("url"):
             scraped = scrape_flipkart_price(fk_search["url"])
-            scraped["discount_percent"] = calc_discount(scraped.get("price"), scraped.get("mrp"))
+            
+            if not scraped.get("title") and fk_search.get("title"):
+                scraped["title"] = fk_search["title"]
+
+            # Strict validation check
+            if not scraped.get("price_inr") or not scraped.get("title"):
+                scraped["error"] = "Invalid scraped data: title or price missing"
+                scraped["price_inr"] = None
+                scraped["price"] = None
+
+            scraped["discount_percent"] = calc_discount(scraped.get("price_inr"), scraped.get("mrp"))
             response["flipkart"] = {**fk_search, **scraped}
         else:
-            response["flipkart"] = {"error": fk_search.get("error"), "url": None, "price": None}
+            response["flipkart"] = {"error": fk_search.get("error"), "url": None, "price": None, "price_inr": None}
 
     # Price comparison
-    amz_price = response["amazon"].get("price") if response["amazon"] else None
-    fk_price  = response["flipkart"].get("price") if response["flipkart"] else None
+    amz_price = response["amazon"].get("price_inr") if (response["amazon"] and response["amazon"].get("price_inr")) else None
+    fk_price  = response["flipkart"].get("price_inr") if (response["flipkart"] and response["flipkart"].get("price_inr")) else None
 
     if amz_price and fk_price:
         cheaper = "amazon" if amz_price < fk_price else "flipkart"
@@ -471,7 +561,14 @@ def scrape_from_url(
             detail="Only amazon.in and flipkart.com URLs are supported",
         )
 
-    result["discount_percent"] = calc_discount(result.get("price"), result.get("mrp"))
+    # Strict validation
+    if not result.get("price_inr") or not result.get("title"):
+        raise HTTPException(
+            status_code=422,
+            detail="Could not scrape valid title or price from the provided URL"
+        )
+
+    result["discount_percent"] = calc_discount(result.get("price_inr"), result.get("mrp"))
     return result
 
 
@@ -498,10 +595,6 @@ def get_urls_only(
 
     return result
 
-
-# ──────────────────────────────────────────────────────────────
-# Run
-# ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn
