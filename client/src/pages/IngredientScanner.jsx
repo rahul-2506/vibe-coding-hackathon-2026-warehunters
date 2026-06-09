@@ -149,9 +149,9 @@ const IngredientScanner = () => {
 
                         if (!res.ok) {
                             if (res.status === 429) {
-                                throw new Error("Google API Rate Limit Reached! You are scanning too fast. Please wait 30 seconds and try again.");
+                                throw new Error("ReviewLens Scanner Limit Reached! You are scanning too fast. Please wait 30 seconds and try again.");
                             }
-                            throw new Error(`Gemini API returned status ${res.status}`);
+                            throw new Error(`ReviewLens Scanner API returned status ${res.status}`);
                         }
 
                     const json = await res.json();
