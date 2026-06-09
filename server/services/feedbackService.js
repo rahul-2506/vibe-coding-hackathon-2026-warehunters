@@ -34,6 +34,8 @@ export const feedbackService = {
             detail_richness: 70,
             spam_risk: 10
         };
+        let ingredients = [];
+        let scientific_context = null;
 
         try {
             const analysisResult = await aiGateway.reviewAnalysis.analyzeReview({
@@ -46,7 +48,8 @@ export const feedbackService = {
                 discovery_source: discovery,
                 confidence_score: confScore,
                 image_url: imgUrl,
-                user_id: user_id || null
+                user_id: user_id || null,
+                mentioned_ingredients: mentioned_ingredients
             });
 
             trust_score = analysisResult.trust_score;
@@ -55,6 +58,8 @@ export const feedbackService = {
             ai_confidence = analysisResult.ai_confidence;
             reviewer_score = analysisResult.reviewer_score;
             analysis_breakdown = analysisResult.analysis_breakdown;
+            ingredients = analysisResult.ingredients || [];
+            scientific_context = analysisResult.scientific_context || null;
             logger.info(`[feedbackService] Review audited successfully. Trust: ${trust_score}%, Verdict: ${classification}`, 'FEEDBACK');
         } catch (err) {
             logger.error(`[feedbackService Error] Gateway review analysis failed: ${err.message}`, err, 'FEEDBACK');
@@ -142,8 +147,8 @@ export const feedbackService = {
             ai_confidence,
             reviewer_score,
             analysis_breakdown,
-            ingredients: analysisResult ? analysisResult.ingredients : [],
-            scientific_context: analysisResult ? analysisResult.scientific_context : null
+            ingredients,
+            scientific_context
         };
     },
 
