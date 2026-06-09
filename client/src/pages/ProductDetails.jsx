@@ -174,6 +174,7 @@ const ProductDetails = () => {
             }
 
             const payload = await res.json();
+            console.log("Review submission response:", payload);
             const analysisData = payload.data || payload;
             setAiAnalysisResult(analysisData);
 
@@ -196,7 +197,7 @@ const ProductDetails = () => {
             if (reviewsRes.ok) {
                 const resJson = await reviewsRes.json();
                 const data = Array.isArray(resJson) ? resJson : (resJson.data || []);
-                setFeedbacks(data);
+                setFeedbacks(Array.isArray(data) ? data : []);
             }
         } catch (err) {
             console.error("Failed to submit review:", err);
@@ -245,7 +246,7 @@ const ProductDetails = () => {
     }, [user]);
 
     const isMyFeedback = (f) => {
-        return mySubmittedFeedbacks.some(myF => 
+        return (mySubmittedFeedbacks || []).some(myF => 
             myF.product_name === (f.product_name || f.product_title) && 
             myF.review_text === f.review_text && 
             myF.rating === f.rating
@@ -285,7 +286,7 @@ const ProductDetails = () => {
                 if (reviewsRes.ok) {
                     const resJson = await reviewsRes.json();
                     const data = Array.isArray(resJson) ? resJson : (resJson.data || []);
-                    setFeedbacks(data);
+                    setFeedbacks(Array.isArray(data) ? data : []);
                 } else {
                     // Fallback to older feedbacks search
                     const feedRes = await fetch(`${API_BASE_URL}/api/feedbacks`);
@@ -293,7 +294,7 @@ const ProductDetails = () => {
                         const resJson = await feedRes.json();
                         const allFeedbacks = Array.isArray(resJson) ? resJson : (resJson.data || []);
                         const pName = foundProduct?.title || foundProduct?.name || '';
-                        const filtered = allFeedbacks.filter(f => 
+                        const filtered = (Array.isArray(allFeedbacks) ? allFeedbacks : []).filter(f => 
                             f.product_id === Number(id) || 
                             (f.product_name && f.product_name.toLowerCase().trim() === pName.toLowerCase().trim())
                         );
@@ -321,7 +322,7 @@ const ProductDetails = () => {
                 if (recsRes.ok) {
                     const resJson = await recsRes.json();
                     const data = Array.isArray(resJson) ? resJson : (resJson.data || []);
-                    setRecommendations(data);
+                    setRecommendations(Array.isArray(data) ? data : []);
                 }
             } catch (err) {
                 console.error("Failed to fetch recommendations:", err);
@@ -403,7 +404,7 @@ const ProductDetails = () => {
     if (!product) return <div className="error-banner">Product not found.</div>;
 
     // Combine standard DB reviews and newly simulated synthetic ones for local reactive UI testing
-    const activeReviews = [...syntheticTestReviews, ...feedbacks];
+    const activeReviews = [...(syntheticTestReviews || []), ...(feedbacks || [])];
 
     const avgRating = activeReviews.length > 0 
         ? (activeReviews.reduce((acc, f) => acc + Number(f.rating), 0) / activeReviews.length).toFixed(1)
@@ -465,7 +466,7 @@ const ProductDetails = () => {
                 {/* 1. COMPACT PREMIUM IMAGE SIDEBAR GALLERY */}
                 <div className="gallery-layout-container">
                     <div className="thumbnail-sidebar">
-                        {imageList.slice(0, 5).map((img, idx) => (
+                        {(imageList || []).slice(0, 5).map((img, idx) => (
                             <div 
                                 key={idx} 
                                 className={`thumbnail-item glass-panel ${activeImage === img ? 'active-thumb' : ''}`}
@@ -569,7 +570,7 @@ const ProductDetails = () => {
                             </div>
                             
                             <div className="scanner-grid">
-                                {Object.entries(liveRates).map(([platform, price]) => (
+                                {Object.entries(liveRates || {}).map(([platform, price]) => (
                                     <div key={platform} className="scanner-box glass-panel">
                                         <span className="scanner-platform">{platform}</span>
                                         <strong className="scanner-price">₹{price}/-</strong>
@@ -612,7 +613,7 @@ const ProductDetails = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {getPlatformRates(product).map((rate) => (
+                                    {(getPlatformRates(product) || []).map((rate) => (
                                         <tr key={rate.platform} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', verticalAlign: 'middle', background: rate.highlight ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                                             <td style={{ padding: '0.75rem 0.5rem', fontWeight: '600', color: '#fff' }}>
                                                 {rate.logo} {rate.platform}
@@ -740,9 +741,9 @@ const ProductDetails = () => {
 
                 {recsLoading ? (
                     <div className="recs-loading-bar"><div className="spinner"></div></div>
-                ) : recommendations.length > 0 ? (
+                ) : (recommendations || []).length > 0 ? (
                     <div className="recommendations-scroller-grid">
-                        {recommendations.slice(0, 4).map((rec) => (
+                        {(recommendations || []).slice(0, 4).map((rec) => (
                             <div 
                                 key={rec.id} 
                                 className="recommendation-badge-card glass-panel animate-hover"
@@ -902,7 +903,7 @@ const ProductDetails = () => {
                             </div>
                             
                             <div className="rating-bar-container">
-                                {ratingCounts.map(item => (
+                                {(ratingCounts || []).map(item => (
                                     <div key={item.star} className="rating-bar-row">
                                         <span className="bar-label">{item.star} ★</span>
                                         <div className="rating-bar-fill">
@@ -1202,13 +1203,13 @@ const ProductDetails = () => {
                                             <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Analyzed Confidence Factors:</span>
                                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.8rem' }}>
-                                                    {[
-                                                        { name: 'Specificity', val: aiAnalysisResult.analysis_breakdown.specificity },
-                                                        { name: 'Product Relevance', val: aiAnalysisResult.analysis_breakdown.relevance },
-                                                        { name: 'Sentiment Consistency', val: aiAnalysisResult.analysis_breakdown.consistency },
-                                                        { name: 'Detail Richness', val: aiAnalysisResult.analysis_breakdown.detail_richness },
-                                                        { name: 'Spam Risk', val: aiAnalysisResult.analysis_breakdown.spam_risk }
-                                                    ].map(factor => (
+                                                    {([
+                                                        { name: 'Specificity', val: aiAnalysisResult?.analysis_breakdown?.specificity || 0 },
+                                                        { name: 'Product Relevance', val: aiAnalysisResult?.analysis_breakdown?.relevance || 0 },
+                                                        { name: 'Sentiment Consistency', val: aiAnalysisResult?.analysis_breakdown?.consistency || 0 },
+                                                        { name: 'Detail Richness', val: aiAnalysisResult?.analysis_breakdown?.detail_richness || 0 },
+                                                        { name: 'Spam Risk', val: aiAnalysisResult?.analysis_breakdown?.spam_risk || 0 }
+                                                    ]).map(factor => (
                                                         <div key={factor.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
                                                                 <span style={{ color: 'var(--text-muted)' }}>{factor.name}</span>
@@ -1232,13 +1233,13 @@ const ProductDetails = () => {
                                 )}
                             </div>
 
-                        {activeReviews.length > 0 ? (
-                            activeReviews.map((f) => {
+                        {(activeReviews || []).length > 0 ? (
+                            (activeReviews || []).map((f) => {
                                 const hasVerdict = f.verdict && !isMyFeedback(f);
                                 const isGenuine = f.verdict === 'Genuine';
                                 
                                 return (
-                                    <div key={f.id} className={`details-review-card glass-panel ${f.id.toString().startsWith('synth') ? 'synthetic-review-injected animate-pulse' : ''}`}>
+                                    <div key={f.id || Math.random()} className={`details-review-card glass-panel ${(f.id || '').toString().startsWith('synth') ? 'synthetic-review-injected animate-pulse' : ''}`}>
                                         <div className="review-meta">
                                             <div className="review-author">
                                                 <div className="author-avatar-spec">
@@ -1285,7 +1286,7 @@ const ProductDetails = () => {
                                                     Recommend: {f.recommendation}
                                                 </span>
                                             )}
-                                            {f.highlight_categories && Array.isArray(f.highlight_categories) && f.highlight_categories.map((c, idx) => (
+                                            {f.highlight_categories && Array.isArray(f.highlight_categories) && (f.highlight_categories || []).map((c, idx) => (
                                                 <span key={idx} style={{ background: 'var(--accent-color-dim)', border: '1px solid var(--accent-color)', padding: '0.15rem 0.5rem', borderRadius: '20px', color: 'var(--accent-color)', fontSize: '0.65rem' }}>
                                                     {c}
                                                 </span>

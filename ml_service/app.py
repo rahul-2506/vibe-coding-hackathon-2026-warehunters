@@ -276,7 +276,16 @@ async def predict(payload: PredictRequest):
         raise HTTPException(status_code=400, detail="Review text is required")
 
     prediction_label = inference.predict_authenticity(payload.review)
-    return {"prediction": prediction_label}
+    
+    response = {
+        "prediction": prediction_label,
+        "ingredients": [],
+        "recommendations": []
+    }
+    
+    print("ML review response", response)
+    
+    return response
 
 @app.post("/rag_chat")
 async def rag_chat(payload: ChatRequest, request: Request):
