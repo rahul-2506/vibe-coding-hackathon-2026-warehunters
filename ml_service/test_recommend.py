@@ -1,19 +1,16 @@
 import os
 import json
-from google import genai
-from dotenv import load_dotenv
+import urllib.request
 
 # Load environment variables
 load_dotenv(dotenv_path='../server/.env')
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GEMINI_API_KEY:
-    print("API Key not found!")
+if not GROQ_API_KEY:
+    print("Groq API Key not found!")
     exit()
 
-client = genai.Client(api_key=GEMINI_API_KEY)
-# Using gemini-1.5-flash as it's a known stable version, though app.py uses 2.5-flash
-MODEL = "gemini-1.5-flash" 
+MODEL = "llama-3.3-70b-versatile" 
 
 products = [
     {
@@ -59,12 +56,27 @@ INSTRUCTIONS:
 
 user_query = f"USER PROMPT: i want a facewash for my acne skin\n\nINVENTORY:\n{product_context}"
 
-print("Sending request to Gemini...")
-response = client.models.generate_content(
-    model=MODEL,
-    contents=user_query,
-    config={'system_instruction': system_prompt, 'response_mime_type': 'application/json'}
-)
+print("Sending request to Groq...")
+url = "https://api.groq.com/openai/v1/chat/completions"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {GROQ_API_KEY}"
+}
+payload = {
+    "model": MODEL,
+    "messages": [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_query}
+    ],
+    "response_format": {"type": "json_object"}
+}
 
-print("RESPONSE:")
-print(response.text)
+req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
+try:
+    with urllib.request.urlopen(req, timeout=10) as response:
+        res = json.loads(response.read().decode())
+        text = res["choices"][0]["message"]["content"].strip()
+        print("RESPONSE:")
+        print(text)
+except Exception as e:
+    print(f"Error: {e}")

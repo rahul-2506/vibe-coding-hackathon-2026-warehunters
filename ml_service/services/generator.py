@@ -31,28 +31,31 @@ def generate_synthetic_review(product_name, tone='promotional'):
     Generates a realistic bot-like review for a product.
     Tries to call Gemini API if keys are configured, fallback to high-fidelity local templates.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if api_key:
         try:
-            # Let's try request-based fetch to avoid library mismatch errors
             import json
             import urllib.request
             
             prompt = f"Write a highly realistic, spammy, bot-like product review for '{product_name}'. The tone should be {tone}. Keep it under 60 words. Make it obviously look like artificial spam (abuse of capitals, repeated exclamation marks, or repetitive generic phrases)."
             
-            url = f"https://generativetoolkit.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-            headers = {"Content-Type": "application/json"}
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
             payload = {
-                "contents": [{"parts": [{"text": prompt}]}]
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}]
             }
             req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
             with urllib.request.urlopen(req, timeout=5) as response:
                 res = json.loads(response.read().decode())
-                text = res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                text = res["choices"][0]["message"]["content"].strip()
                 if text:
                     return text
         except Exception as e:
-            print(f"Gemini API generation failed: {e}. Using local fallback templates.")
+            print(f"Groq API generation failed: {e}. Using local fallback templates.")
 
     # Local template generation
     templates = BOT_TEMPLATES.get(tone, BOT_TEMPLATES['promotional'])
