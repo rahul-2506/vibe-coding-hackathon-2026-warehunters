@@ -6,6 +6,7 @@ import {
   Navigate,
   Link,
   useLocation,
+  useNavigate,
 } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Home from './pages/Home';
@@ -70,6 +71,17 @@ const AppShell = ({ theme, toggleTheme, user, signOut, children }) => (
 );
 
 /* ─────────────────────────────────────────────
+   NavigateBridge — registers navigate with AuthContext
+   Must live inside <Router> so useNavigate works
+   ───────────────────────────────────────────── */
+const NavigateBridge = () => {
+  const navigate = useNavigate();
+  const { setNavigate } = useAuth();
+  useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
+  return null;
+};
+
+/* ─────────────────────────────────────────────
    App — root component with routing
    ───────────────────────────────────────────── */
 function App() {
@@ -90,6 +102,7 @@ function App() {
     <ComparisonProvider>
       <CartProvider>
         <Router>
+          <NavigateBridge />
           <Routes>
             {/* ── Public: full-screen auth page ── */}
             <Route

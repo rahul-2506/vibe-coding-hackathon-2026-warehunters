@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../config/supabaseClient';
 
 const AuthContext = createContext(null);
@@ -91,13 +91,22 @@ export const AuthProvider = ({ children }) => {
     if (err) { setError(err.message); throw err; }
   };
 
+  const navigateRef = useRef(null);
+
+  const setNavigate = (fn) => { navigateRef.current = fn; };
+
   const signOut = async () => {
     localStorage.removeItem('rl-guest-session');
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
     setSession(null);
-    window.location.assign('/auth');
+    if (navigateRef.current) {
+      navigateRef.current('/auth', { replace: true });
+    } else {
+      // Fallback for edge cases (e.g. called outside Router context)
+      window.location.replace('/auth');
+    }
   };
 
   const updateProfile = async (updates) => {
@@ -115,7 +124,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user, session, profile, loading, error,
-      signUp, signIn, signInWithGoogle, signOut, updateProfile, clearError, loginAsGuest,
+      signUp, signIn, signInWithGoogle, signOut, updateProfile, clearError, loginAsGuest, setNavigate,
     }}>
       {children}
     </AuthContext.Provider>
