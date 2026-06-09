@@ -137,17 +137,20 @@ const IngredientScanner = () => {
 
                         let res = await fetch(url, fetchPayload);
 
-                        // Fallback logic for 503 (Overloaded) or 404 (Not Found)
-                        if (res.status === 404 || res.status === 503) {
+                        // Fallback logic for 503 (Overloaded), 429 (Rate Limited), or 404 (Not Found)
+                        if (res.status === 404 || res.status === 503 || res.status === 429) {
                             console.warn(`Gemini API primary failed with ${res.status}. Trying fallback model...`);
-                            // Wait a moment before retrying if overloaded
-                            if (res.status === 503) await new Promise(r => setTimeout(r, 1000));
+                            // Wait a moment before retrying if overloaded/rate-limited
+                            if (res.status === 503 || res.status === 429) await new Promise(r => setTimeout(r, 2000));
                             
                             const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
                             res = await fetch(fallbackUrl, fetchPayload);
                         }
 
                         if (!res.ok) {
+                            if (res.status === 429) {
+                                throw new Error("Google API Rate Limit Reached! You are scanning too fast. Please wait 30 seconds and try again.");
+                            }
                             throw new Error(`Gemini API returned status ${res.status}`);
                         }
 
