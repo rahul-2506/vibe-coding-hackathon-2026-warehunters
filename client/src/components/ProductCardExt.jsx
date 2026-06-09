@@ -36,6 +36,13 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
     const originalPrice = Number(product.originalPrice || product.original_price || price);
     const discountPercent = originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : 0;
 
+    const specs = product.specifications || product.features;
+    const seller = product.seller || (specs && (specs.Merchant || specs.Seller || specs.merchant || specs.seller)) || 'Official Seller';
+    const idNum = typeof product.id === 'number' ? product.id : (product.id ? String(product.id).charCodeAt(0) : 0);
+    const deliveryEstimate = product.delivery_estimate || product.deliveryEstimate || (
+        idNum % 2 === 0 ? 'Delivery tomorrow' : 'Delivery in 2 days'
+    );
+
     // Marketplace matching & styling details
     const source = product.source || 'Internal Store';
     const getSourceStyle = (src) => {
@@ -135,9 +142,39 @@ const ProductCardExt = ({ product, onAddChat, onViewFeedback, index = 0 }) => {
                     <span className="ext-reviews">{reviewCount} Verified Reviews</span>
                 </div>
 
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.45)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        Seller: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{seller}</strong>
+                    </span>
+                    <span style={{ color: '#34d399', fontWeight: '700', letterSpacing: '-0.01em' }}>
+                        {deliveryEstimate}
+                    </span>
+                </div>
+
                 <p className="ext-description">
                     {product.description || 'Premium scientifically validated item cataloged for clinical safety.'}
                 </p>
+
+                {specs && typeof specs === 'object' && Object.keys(specs).length > 0 && (
+                    <div className="ext-specs-container" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '0.75rem', marginTop: '-0.25rem' }}>
+                        {Object.entries(specs)
+                            .filter(([key]) => key !== 'Merchant' && key !== 'seller' && key !== 'Merchant Name' && key !== 'Seller')
+                            .slice(0, 3)
+                            .map(([key, val]) => (
+                                <span key={key} style={{
+                                    fontSize: '0.65rem',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    color: 'rgba(255, 255, 255, 0.75)',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <strong>{key}:</strong> {val}
+                                </span>
+                            ))}
+                    </div>
+                )}
 
                 <div className="ext-price-row" style={{ alignItems: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

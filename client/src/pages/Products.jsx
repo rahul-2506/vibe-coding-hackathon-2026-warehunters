@@ -16,7 +16,7 @@ import { API_BASE_URL } from '../config/api';
 import SkeletonLoader from '../components/SkeletonLoader';
 import './ProductsScreen.css';
 
-const getProductSubcategory = (p) => {
+const _getProductSubcategory = (p) => {
     if (p.subcategory) return p.subcategory;
     const nameLower = (p.title || p.name || '').toLowerCase();
     if (nameLower.includes('wash') || nameLower.includes('cleanser') || nameLower.includes('cleansing') || nameLower.includes('micellar')) {
@@ -177,7 +177,10 @@ const Products = () => {
 
     // Reset list and fetch page 1 whenever filters change
     useEffect(() => {
-        fetchProducts(0, true);
+        const timer = setTimeout(() => {
+            fetchProducts(0, true);
+        }, 0);
+        return () => clearTimeout(timer);
     }, [
         debouncedQuery,
         activeCategory,

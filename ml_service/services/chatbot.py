@@ -271,7 +271,25 @@ def perform_rag_chat(query, query_supabase, gemini_client, groq_client, GEMINI_M
         3. **Missing Profile Data**: If the user is asking for product recommendations or a routine but has not mentioned their skin type, concern, or budget, ask helpful, friendly step-by-step follow-up questions instead of guessing.
         4. **Tone**: Curiously friendly, authoritative yet completely approachable. Use premium terminologies naturally (e.g. "stratum corneum," "sebum regulation," "lipid barrier") but keep it conversational.
         5. **Small Talk & Humor**: Handle small talk, humor, jokes, and greetings naturally. Do not force product recommendations into casual small talk.
-        6. **Formatting**: Use clean Markdown hierarchy (###) for structure.
+        6. **Formatting Structure**: You MUST format your response strictly using the following Markdown headers and section layout:
+           
+           ### Introduction
+           [Brief overview of the topic or problem]
+           
+           ### Main Discussion
+           [Detailed explanation, features, analysis, or conversation content]
+           
+           ### Point 1
+           [First major point or explanation]
+           
+           ### Point 2
+           [Second major point or explanation]
+           
+           ### Example / Demonstration
+           [Optional examples or scenarios, omit this section if not relevant]
+           
+           ### Conclusion
+           [Final summary, recommendation, or closing statement]
         """
         
         user_prompt = f"USER QUESTION: \"{query}\"\n\n--- CONTEXTUAL DATASETS ---\n{context}"

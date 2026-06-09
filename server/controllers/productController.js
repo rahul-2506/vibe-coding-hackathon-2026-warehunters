@@ -185,48 +185,17 @@ export const productController = {
                 }
             }
 
+            const sortTypeVal = req.query.sort || 'trust_score';
             let results = [];
-            // We fetch up to 100 candidate items for ranking & pagination
-            const candidateLimit = 100;
             try {
-                results = await vectorSearchService.semanticSearch(
+                results = await productService.searchProducts(
                     q || '',
                     category || null,
-                    budgetVal,
-                    candidateLimit,
-                    userPreferences
+                    sortTypeVal,
+                    subcategory || null
                 );
             } catch (err) {
-                logger.warn(`[PRODUCT CONTROLLER] Vector semantic search failed: ${err.message}. Proceeding to fallback.`, 'PRODUCT_CONTROLLER');
-            }
-
-            // If no local products found (or only low relevance/partial matches) and search query is provided, perform live retrieval
-            const cleanedQ = cleanQueryForMatching(q);
-            const qWords = cleanedQ ? cleanedQ.toLowerCase().split(/\s+/).filter(w => w.length > 2) : [];
-            const hasGoodMatch = results && results.length > 0 && results.some(p => {
-                const title = (p.title || p.name || '').toLowerCase();
-                const desc = (p.description || '').toLowerCase();
-                return qWords.length === 0 || qWords.every(word => title.includes(word) || desc.includes(word));
-            });
-
-            if ((!results || results.length === 0 || !hasGoodMatch) && q) {
-                logger.info(`[PRODUCT CONTROLLER] Zero or low-relevance local results for "${q}". Triggering live product search fallback...`, 'PRODUCT_CONTROLLER');
-                
-                const geminiKey = req.headers['x-gemini-key'] || process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIzaSy') ? process.env.AI_API_KEY : null);
-                const groqKey = req.headers['x-groq-key'] || process.env.GROQ_API_KEY || null;
-
-                const liveRes = await productSearch.search({
-                    query: q,
-                    category: category || null,
-                    budget: budgetVal
-                }, {
-                    geminiKey,
-                    groqKey
-                });
-
-                if (liveRes && liveRes.success && liveRes.products) {
-                    results = liveRes.products;
-                }
+                logger.warn(`[PRODUCT CONTROLLER] Product service search failed: ${err.message}. Proceeding with empty results.`, 'PRODUCT_CONTROLLER');
             }
 
             // Sync formats for frontend compatibility
@@ -312,6 +281,21 @@ export const productController = {
                 }
                 return 0;
             });
+
+            // Deduplicate products by title and ID to satisfy duplicate avoidance
+            const seenIds = new Set();
+            const seenTitles = new Set();
+            const uniqueFilteredResults = [];
+            for (const p of filteredResults) {
+                const idKey = String(p.id);
+                const titleKey = (p.title || p.name || '').toLowerCase().trim();
+                if (!seenIds.has(idKey) && !seenTitles.has(titleKey)) {
+                    seenIds.add(idKey);
+                    seenTitles.add(titleKey);
+                    uniqueFilteredResults.push(p);
+                }
+            }
+            filteredResults = uniqueFilteredResults;
 
             // Paginate results using cursor offset
             const pageProducts = filteredResults.slice(cursorVal, cursorVal + limitVal);
