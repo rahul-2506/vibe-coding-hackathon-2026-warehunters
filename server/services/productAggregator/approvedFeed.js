@@ -865,5 +865,121 @@ export const approvedFeed = [
         availability: "In Stock",
         productUrl: "https://www.amazon.in/dp/dummy4",
         specifications: { "Thickness": "6mm", "Material": "TPE", "Merchant": "Internal Store" }
+    },
+    // --- MORE GROCERIES ---
+    {
+        title: "Extra Virgin Olive Oil (1L)",
+        brand: "Figaro",
+        category: "Groceries",
+        price: 850,
+        originalPrice: 1000,
+        rating: 4.7,
+        reviewCount: 4500,
+        image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=600&auto=format&fit=crop",
+        description: "Pure extra virgin olive oil ideal for salads and cooking.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy5",
+        specifications: { "Volume": "1L", "Type": "Olive Oil", "Merchant": "Internal Store" }
+    },
+    {
+        title: "Pure Raw Honey (500g)",
+        brand: "Dabur",
+        category: "Groceries",
+        price: 250,
+        originalPrice: 300,
+        rating: 4.8,
+        reviewCount: 1200,
+        image: "https://images.unsplash.com/photo-1587049352847-4d4b1ed7d885?w=600&auto=format&fit=crop",
+        description: "100% pure raw honey sourced from the Himalayas.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy6",
+        specifications: { "Weight": "500g", "Type": "Honey", "Merchant": "Internal Store" }
+    },
+    // --- MORE HOME ---
+    {
+        title: "Ceramic Coffee Mug Set (Set of 4)",
+        brand: "Chumbak",
+        category: "Home",
+        price: 999,
+        originalPrice: 1299,
+        rating: 4.6,
+        reviewCount: 850,
+        image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=600&auto=format&fit=crop",
+        description: "Hand-painted ceramic coffee mugs, perfect for gifting.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy7",
+        specifications: { "Material": "Ceramic", "Quantity": "4", "Merchant": "Internal Store" }
+    },
+    {
+        title: "Orthopedic Memory Foam Pillow",
+        brand: "Sleepyhead",
+        category: "Home",
+        price: 1299,
+        originalPrice: 1999,
+        rating: 4.9,
+        reviewCount: 3000,
+        image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=600&auto=format&fit=crop",
+        description: "Contoured memory foam pillow for neck and back support.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy8",
+        specifications: { "Material": "Memory Foam", "Type": "Orthopedic", "Merchant": "Internal Store" }
+    },
+    // --- MORE FASHION ---
+    {
+        title: "Women's Floral Print Maxi Dress",
+        brand: "Biba",
+        category: "Fashion",
+        price: 1499,
+        originalPrice: 2499,
+        rating: 4.5,
+        reviewCount: 920,
+        image: "https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=600&auto=format&fit=crop",
+        description: "Elegant floral print maxi dress made from breathable cotton.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy9",
+        specifications: { "Material": "Cotton", "Pattern": "Floral", "Merchant": "Internal Store" }
+    },
+    {
+        title: "Men's Running Shoes (Black)",
+        brand: "Puma",
+        category: "Fashion",
+        price: 2999,
+        originalPrice: 4999,
+        rating: 4.7,
+        reviewCount: 4100,
+        image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop",
+        description: "Lightweight and breathable running shoes with excellent grip.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy10",
+        specifications: { "Color": "Black", "Use": "Running", "Merchant": "Internal Store" }
+    },
+    // --- MORE OTHERS ---
+    {
+        title: "Wireless Noise-Cancelling Earbuds",
+        brand: "JBL",
+        category: "Others",
+        price: 3499,
+        originalPrice: 5999,
+        rating: 4.6,
+        reviewCount: 5200,
+        image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600&auto=format&fit=crop",
+        description: "High quality wireless earbuds with active noise cancellation and 24h battery life.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy11",
+        specifications: { "Type": "Wireless", "Features": "ANC", "Merchant": "Internal Store" }
+    },
+    {
+        title: "Adjustable Dumbbell Set (10kg)",
+        brand: "CultSport",
+        category: "Others",
+        price: 1999,
+        originalPrice: 2999,
+        rating: 4.8,
+        reviewCount: 1500,
+        image: "https://images.unsplash.com/photo-1638043685817-5e16df633008?w=600&auto=format&fit=crop",
+        description: "Set of adjustable dumbbells for home workouts.",
+        availability: "In Stock",
+        productUrl: "https://www.amazon.in/dp/dummy12",
+        specifications: { "Weight": "10kg", "Type": "Dumbbells", "Merchant": "Internal Store" }
     }
 ];
