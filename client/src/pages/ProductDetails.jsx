@@ -1198,6 +1198,21 @@ const ProductDetails = () => {
                                             </div>
                                         </div>
 
+                                        {/* Scientific Analysis Section */}
+                                        {aiAnalysisResult.scientific_context && (
+                                            <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(56, 189, 248, 0.05)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px' }}>
+                                                <h4 style={{ margin: '0 0 0.5rem 0', color: '#38bdf8', fontSize: '0.85rem' }}>🔬 Scientific Analysis</h4>
+                                                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{aiAnalysisResult.scientific_context}</p>
+                                                {aiAnalysisResult.ingredients && aiAnalysisResult.ingredients.length > 0 && (
+                                                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                        {aiAnalysisResult.ingredients.map(ing => (
+                                                            <span key={ing} style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem' }}>{ing}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         {/* Horizontal Factor breakdown metrics */}
                                         {aiAnalysisResult.analysis_breakdown && (
                                             <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>

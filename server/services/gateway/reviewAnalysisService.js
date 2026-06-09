@@ -104,12 +104,38 @@ export const reviewAnalysisService = {
             trustScore = Math.min(100, trustScore + 5);
         }
 
+        const scientificDB = {
+            'salicylic': 'Salicylic Acid is a BHA that penetrates pores to dissolve sebum and dead skin cells, ideal for acne.',
+            'niacinamide': 'Niacinamide (Vitamin B3) improves skin barrier function and reduces hyperpigmentation.',
+            'neem': 'Neem contains nimbin, which has potent antibacterial and anti-inflammatory properties.',
+            'hyaluronic': 'Hyaluronic Acid is a humectant capable of holding 1000x its weight in water.',
+            'retinol': 'Retinol promotes cell turnover and collagen production for anti-aging benefits.',
+            'ubtan': 'Ubtan is a traditional Ayurvedic mixture used for exfoliation and skin brightening.',
+            'glycerin': 'Glycerin is an effective humectant that draws moisture into the skin.',
+            'vitamin c': 'Vitamin C is a powerful antioxidant that brightens skin and stimulates collagen.',
+            'ceramide': 'Ceramides are lipids that help form the skin barrier and retain moisture.'
+        };
+
+        const foundIngredients = [];
+        let scientificContext = null;
+
+        Object.keys(scientificDB).forEach(key => {
+            if (text.toLowerCase().includes(key) || (payload.mentioned_ingredients && payload.mentioned_ingredients.toLowerCase().includes(key))) {
+                foundIngredients.push(key.charAt(0).toUpperCase() + key.slice(1));
+                if (!scientificContext) {
+                    scientificContext = scientificDB[key];
+                }
+            }
+        });
+
         return {
             trust_score: trustScore,
             classification: detectorResult.verdict,
             ml_explanation: detectorResult.explanation,
             ai_confidence: detectorResult.reviewConfidence,
             reviewer_score: newReputation,
+            ingredients: foundIngredients,
+            scientific_context: scientificContext,
             analysis_breakdown: {
                 specificity: Math.round(specificityScore),
                 relevance: Math.round(relevanceScore),

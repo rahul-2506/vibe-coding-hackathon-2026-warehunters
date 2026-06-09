@@ -37,7 +37,8 @@ export const feedbackController = {
                     detail_richness: 70,
                     spam_risk: 10
                 },
-                ingredients: [],
+                ingredients: result.ingredients || [],
+                scientific_context: result.scientific_context || null,
                 sentiment: {},
                 recommendations: [],
                 message: 'Feedback submitted successfully for verification.'

@@ -141,7 +141,9 @@ export const feedbackService = {
             ml_explanation,
             ai_confidence,
             reviewer_score,
-            analysis_breakdown
+            analysis_breakdown,
+            ingredients: analysisResult ? analysisResult.ingredients : [],
+            scientific_context: analysisResult ? analysisResult.scientific_context : null
         };
     },
 
