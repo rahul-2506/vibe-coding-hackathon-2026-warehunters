@@ -710,7 +710,7 @@ const ProductDetails = () => {
                             {[
                                 { aspect: 'Efficacy & Quality', score: 94, sentiment: 'Excellent' },
                                 { aspect: 'Cost-Efficiency', score: 85, sentiment: 'Great Value' },
-                                { aspect: 'Ingredients & Active safety', score: 90, sentiment: 'Very Safe' },
+                                { aspect: product?.category === 'Skincare' ? 'Ingredients & Active safety' : 'Properties & Build Quality', score: 90, sentiment: 'Very Safe' },
                                 { aspect: 'Shipping & Delivery speed', score: 78, sentiment: 'Reliable' }
                             ].map((aspectObj) => (
                                 <div key={aspectObj.aspect} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -958,7 +958,7 @@ const ProductDetails = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>2. What Stood Out? (Select Multiples)</label>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                                {['Quality', 'Price', 'Packaging', 'Delivery', 'Results', 'Ingredients', 'Customer Support', 'Other'].map(cat => {
+                                                {['Quality', 'Price', 'Packaging', 'Delivery', 'Results', product?.category === 'Skincare' || product?.category === 'Groceries' ? 'Ingredients' : 'Properties', 'Customer Support', 'Other'].map(cat => {
                                                     const isSelected = highlightCategories.includes(cat);
                                                     return (
                                                         <span
@@ -1092,10 +1092,17 @@ const ProductDetails = () => {
                                         {/* 6. Active Ingredients & Image URL inline */}
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: '150px' }}>
-                                                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Active Ingredients (e.g. salicylic, neem)</label>
+                                                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                    {product?.category === 'Skincare' ? 'Active Ingredients (e.g. salicylic)' : 
+                                                     product?.category === 'Electronics' ? 'Key Specifications (e.g. battery, RAM)' : 
+                                                     product?.category === 'Fashion' ? 'Fabric / Material Properties' : 
+                                                     product?.category === 'Home' ? 'Material / Build Quality' : 
+                                                     product?.category === 'Groceries' ? 'Ingredients / Nutritional Info' : 
+                                                     'Key Properties / Features'}
+                                                </label>
                                                 <input
                                                     type="text"
-                                                    placeholder="Ingredients you recall..."
+                                                    placeholder={product?.category === 'Skincare' ? "Ingredients you recall..." : "Properties you recall..."}
                                                     value={reviewIngredients}
                                                     onChange={(e) => setReviewIngredients(e.target.value)}
                                                     style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: 'white' }}
@@ -1338,7 +1345,12 @@ const ProductDetails = () => {
                                         <div className="review-audit-details-row" style={{ marginTop: '0.75rem' }}>
                                             {f.mentioned_ingredients && f.mentioned_ingredients !== "None" && (
                                                 <span className="ingredient-pill">
-                                                    🌿 Bio-actives: {f.mentioned_ingredients}
+                                                    {product?.category === 'Skincare' ? '🌿 Bio-actives:' : 
+                                                     product?.category === 'Electronics' ? '⚡ Specs:' : 
+                                                     product?.category === 'Fashion' ? '👕 Fabric:' : 
+                                                     product?.category === 'Home' ? '🏠 Material:' : 
+                                                     product?.category === 'Groceries' ? '🍲 Ingredients:' : 
+                                                     '✨ Properties:'} {f.mentioned_ingredients}
                                                 </span>
                                             )}
                                             

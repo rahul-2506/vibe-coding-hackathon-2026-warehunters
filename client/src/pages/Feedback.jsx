@@ -247,10 +247,10 @@ const Feedback = () => {
                             </div>
 
                             <div className="form-group">
-                                <label>Key ingredients you recall?</label>
+                                <label>Key properties / ingredients you recall?</label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. neem, turmeric, vitamin c..."
+                                    placeholder="e.g. neem, battery life, cotton..."
                                     value={formData.mentioned_ingredients}
                                     onChange={(e) => setFormData({ ...formData, mentioned_ingredients: e.target.value })}
                                 />
