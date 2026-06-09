@@ -112,7 +112,7 @@ const IngredientScanner = () => {
                         // Shortened prompt to reduce output tokens
                         const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"1 short benefit\"]}]";
 
-                        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
+                        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
                         
                         const fetchPayload = {
                             method: 'POST',
@@ -143,7 +143,7 @@ const IngredientScanner = () => {
                             // Wait a moment before retrying if overloaded/rate-limited
                             if (res.status === 503 || res.status === 429) await new Promise(r => setTimeout(r, 2000));
                             
-                            const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+                            const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`;
                             res = await fetch(fallbackUrl, fetchPayload);
                         }
 
