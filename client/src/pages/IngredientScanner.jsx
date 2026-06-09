@@ -110,7 +110,7 @@ const IngredientScanner = () => {
 
                     try {
                         // Shortened prompt to reduce output tokens
-                        const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"benefit 1\", \"benefit 2\", \"benefit 3\"]}]";
+                        const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"ingredient name\", \"benefits\": [\"first benefit\", \"second benefit\", \"third benefit\"]}]";
 
                         let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
                         
@@ -302,22 +302,25 @@ const IngredientScanner = () => {
                                         <Sparkles size={20} style={{ color: '#a855f7' }} />
                                         <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700' }}>{item.name}</h3>
                                     </div>
-                                    <p className="ing-desc" style={{ fontSize: '0.95rem', color: 'var(--text-main, #f8fafc)', marginBottom: '1rem', lineHeight: '1.5' }}>
-                                        {item.description}
-                                    </p>
-                                    {item.benefits && item.benefits.length > 0 && (
-                                        <div style={{ marginTop: '0.75rem' }}>
-                                            <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted, #94a3b8)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key Efficacy & Benefits</h4>
-                                            <ul className="benefits-list">
-                                                {item.benefits.map((benefit, bIdx) => (
-                                                    <li key={bIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                                        <Leaf size={14} className="leaf-bullet" style={{ marginTop: '0.25rem' }} />
-                                                        <span>{benefit}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const benefitsArray = Array.isArray(item.benefits) ? item.benefits : (item.benefits ? [item.benefits] : []);
+                                        if (benefitsArray.length > 0) {
+                                            return (
+                                                <div style={{ marginTop: '0.75rem' }}>
+                                                    <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted, #94a3b8)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key Efficacy & Benefits</h4>
+                                                    <ul className="benefits-list">
+                                                        {benefitsArray.map((benefit, bIdx) => (
+                                                            <li key={bIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                                                <Leaf size={14} className="leaf-bullet" style={{ marginTop: '0.25rem' }} />
+                                                                <span>{benefit}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             ))}
 
