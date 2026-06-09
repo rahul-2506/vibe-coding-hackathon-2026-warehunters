@@ -110,7 +110,7 @@ const IngredientScanner = () => {
 
                     try {
                         // Shortened prompt to reduce output tokens
-                        const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"1 short benefit\"]}]";
+                        const prompt = "Extract ingredients from image. Return ONLY JSON array: [{\"name\": \"name\", \"benefits\": [\"benefit 1\", \"benefit 2\", \"benefit 3\"]}]";
 
                         let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
                         
