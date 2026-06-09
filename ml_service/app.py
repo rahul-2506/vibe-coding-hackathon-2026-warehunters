@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
 from groq import Groq
 
 # Import Modular Services
@@ -138,36 +137,11 @@ else:
     GROQ_MODEL = None
     logger.warning("[AI ENGINE] GROQ_API_KEY not found in environment.")
 
-# Gemini Configuration (Primary AI Engine)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY and AI_API_KEY:
-    if AI_API_KEY.startswith("AIzaSy"):
-        GEMINI_API_KEY = AI_API_KEY
-        logger.info("[AI ENGINE] Resolved Gemini API Key from AI_API_KEY signature.")
-
+# Gemini is disabled — Groq is the sole AI engine
 gemini_connected = False
-if GEMINI_API_KEY:
-    try:
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        GEMINI_MODEL = "gemini-2.0-flash"
-        logger.info("[AI ENGINE] Gemini client initialized successfully. Testing connectivity...")
-        try:
-            gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents="ping"
-            )
-            gemini_connected = True
-            logger.info("[AI ENGINE] Gemini connectivity test passed.")
-        except Exception as conn_err:
-            logger.error(f"[AI ENGINE] Gemini connectivity test failed: {conn_err}")
-    except Exception as e:
-        logger.error(f"[AI ENGINE] Failed to initialize Gemini client: {e}")
-        gemini_client = None
-        GEMINI_MODEL = None
-else:
-    gemini_client = None
-    GEMINI_MODEL = None
-    logger.warning("[AI ENGINE] GEMINI_API_KEY not found. Intelligent offline fallbacks will be used.")
+gemini_client = None
+GEMINI_MODEL = None
+logger.info("[AI ENGINE] Gemini disabled. Using Groq as the sole AI engine.")
 
 # Supabase Credentials
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL") or ""
@@ -255,7 +229,7 @@ async def health():
         "status": "ok",
         "service": "ml_service",
         "database_connected": db_connected,
-        "gemini_connected": gemini_connected,
+        "gemini_connected": False,
         "groq_connected": groq_connected,
         "naive_bayes_cached": inference.is_trained,
         "naive_bayes_accuracy": f"{inference.model_accuracy * 100:.2f}%" if inference.is_trained else "not_trained_yet"

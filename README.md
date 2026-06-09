@@ -1,151 +1,82 @@
-# ReviewLens: AI Skincare Recommendation & Intelligence Platform
+# VChat AI - Production Deployment Guide & Architecture
 
-ReviewLens is a high-performance, AI-powered skincare intelligence platform that delivers expert-level, scientifically grounded product insights, trust-scoring, and personalized clinical recommendations.
+VChat is an intelligent, multi-tier AI product recommendation engine consisting of a React Vite frontend, an Express Node.js backend proxy, and a FastAPI Python ML service. 
 
----
+## 🏗️ Architecture & Deployment Strategy
 
-## 📂 Project Structure
+Your production architecture is split across three robust platforms for scalability:
 
-```
-ReviewLens/
-├── client/          # Frontend application (React + Vite)
-├── server/          # Backend application API gateway (Node.js + Express)
-├── ml_service/      # AI, RAG & Machine Learning microservice (Python + Flask)
-├── database/        # SQL schemas, migration scripts, and seeds
-└── README.md        # Setup and startup documentation (this file)
-```
+1. **Frontend (Vercel)**: React + Vite application (`/client`).
+2. **Backend (Vercel Serverless / Node)**: Express.js server (`/server`).
+3. **ML Service (Render)**: Python FastAPI service (`/ml_service`).
+4. **Database (Supabase)**: PostgreSQL with pgvector for RAG.
 
 ---
 
-## ⚡ Quick Start & Startup Sequence
+## 🔑 Environment Variables & Keys Checklist
 
-For the application to function fully, run all three services in separate terminals in the following sequence:
+Before deploying, ensure you have these keys ready. 
 
-### 1. Database Setup
-Ensure you have a MySQL server running (e.g. via XAMPP, local service, or Docker) and a database named `ai_recommender` created.
-```bash
-# Navigate to database folder
-cd database
+### 1. Backend (`/server/.env`) -> Deployed on Vercel
+| Variable | Value/Source | Purpose |
+|----------|-------------|---------|
+| `PORT` | `5000` | Port for the Node server. |
+| `JWT_SECRET` | *(Your secure random string)* | Used for user session authentication. |
+| `FRONTEND_URL` | `https://your-frontend.vercel.app` | CORS restriction to allow only your UI to talk to the API. |
+| `VITE_SUPABASE_URL` | `https://<YOUR_ID>.supabase.co` | Connects Node to the Supabase database. |
+| `VITE_SUPABASE_ANON_KEY` | *(Your Supabase Anon Key)* | Connects Node to Supabase securely. |
+| `SUPABASE_SERVICE_ROLE_KEY` | *(Your Supabase Role Key)* | For administrative DB access (bypassing RLS). |
+| `ML_SERVICE_URL` | `https://your-ml-service.onrender.com` | Links the Node backend to the Render Python AI service. |
+| `PRICE_SCRAPER_URL` | *(Optional)* | For external price scraping microservices. |
+| `GROQ_API_KEY` | `gsk_...` | **CRITICAL:** The sole AI engine powering the VChat LLM logic. |
 
-# Initialize schema and seed data
-mysql -u root -p ai_recommender < schema_v3.sql
-mysql -u root -p ai_recommender < migration_v3.sql
-mysql -u root -p ai_recommender < feedback_schema.sql
-mysql -u root -p ai_recommender < knowledge_schema.sql
-mysql -u root -p ai_recommender < skincare_data.sql
-mysql -u root -p ai_recommender < knowledge_data.sql
-```
+### 2. Frontend (`/client/.env`) -> Deployed on Vercel
+| Variable | Value/Source | Purpose |
+|----------|-------------|---------|
+| `VITE_API_URL` | `https://your-backend.vercel.app` | Points the UI to your Vercel Node backend. |
+| `VITE_SUPABASE_URL` | `https://<YOUR_ID>.supabase.co` | Direct UI -> Supabase connection (for auth/realtime). |
+| `VITE_SUPABASE_ANON_KEY` | *(Your Supabase Anon Key)* | Required for Supabase client initialization. |
 
-### 2. ML Service (Python Flask)
-*Port: `8000`* | *Health Check: `http://localhost:8000/health`*
-```bash
-# Navigate to ml_service folder
-cd ml_service
-
-# (Optional) Create and activate a clean virtual environment
-python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install exact python dependencies
-pip install -r requirements.txt
-
-# Run the Flask service
-python app.py
-```
-
-### 3. Backend Gateway Server (Node.js Express)
-*Port: `5000`* | *Health Check: `http://localhost:5000/health` or `http://localhost:5000/api/health`*
-```bash
-# Navigate to server folder
-cd server
-
-# Install backend dependencies
-npm install
-
-# Setup environment configuration
-copy .env.example .env   # (Edit .env to supply database credentials & API keys)
-
-# Start backend server in development mode
-npm run dev
-```
-
-### 4. Frontend Client (React Vite)
-*Port: `5173`* | *Development Server URL: `http://localhost:5173`*
-```bash
-# Navigate to client folder
-cd client
-
-# Install frontend dependencies
-npm install
-
-# Setup environment configuration
-copy .env.example .env   # (Edit .env as needed)
-
-# Start client development server
-npm run dev
-```
+### 3. ML Service (`/ml_service/.env`) -> Deployed on Render
+| Variable | Value/Source | Purpose |
+|----------|-------------|---------|
+| `PORT` | `18001` (Render will override) | Port for FastAPI. |
+| `SUPABASE_URL` | `https://<YOUR_ID>.supabase.co` | Python RAG engine DB connection. |
+| `SUPABASE_ANON_KEY` | *(Your Supabase Anon Key)* | Python DB connection. |
+| `GROQ_API_KEY` | `gsk_...` | Used by the Python service for any auxiliary vector/inference fallbacks. |
 
 ---
 
-## 🔌 API Port & Microservice Architecture
+## 🚀 Step-by-Step Deployment Plan
 
-The application communicates over the following standard localhost ports:
-* **Frontend Client**: `http://localhost:5173` (Vite)
-* **Backend API Gateway**: `http://localhost:5000` (Express)
-* **ML Service Backend**: `http://localhost:8000` (Flask)
+### Phase 1: Deploy ML Service to Render
+Render is perfect for Python/FastAPI because it installs `requirements.txt` natively and binds to the exposed port.
 
-### 🏥 Health Check Endpoints
-Use these endpoints to verify service health and connectivity status:
-* **Backend Gateway Health Check**: `GET http://localhost:5000/health`
-* **Backend API-scoped Health Check**: `GET http://localhost:5000/api/health`
-* **ML Service Health Check**: `GET http://localhost:8000/health` (Returns LLM client connection flags for Gemini/Groq)
+1. Create a new **Web Service** on Render connected to your GitHub repo.
+2. Set the Root Directory to `ml_service`.
+3. Set the Build Command: `pip install -r requirements.txt`
+4. Set the Start Command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+5. Add all the **ML Service Environment Variables** listed above.
+6. Deploy and copy the resulting URL (e.g., `https://vchat-ml.onrender.com`).
 
----
+### Phase 2: Deploy Node Backend to Vercel
+Vercel can host Express apps using `vercel.json` serverless functions.
 
-## ⚙️ Environment Variables Setup
+1. Ensure your `server/vercel.json` exists to route `/*` to `server.js` (or deploy via Vercel CLI).
+2. Create a new project in Vercel. Set the Root Directory to `server`.
+3. Override the Start Command to: `node server.js` (or leave default if Vercel detects Express).
+4. **Crucial:** Add all **Backend Environment Variables**. Set `ML_SERVICE_URL` to the Render URL from Phase 1!
+5. Deploy and copy the resulting backend URL (e.g., `https://vchat-api.vercel.app`).
 
-### Backend Server (`server/.env`)
-Create a `.env` file in the `/server` folder with:
-```env
-PORT=5000
-JWT_SECRET=your_jwt_secret_key_here          # Enforced on startup
-VITE_SUPABASE_URL=https://your-supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-ML_SERVICE_URL=http://localhost:8000
-```
+### Phase 3: Deploy React Frontend to Vercel
+1. Create another new project in Vercel. Set the Root Directory to `client`.
+2. Framework Preset: **Vite**.
+3. Build Command: `npm run build`
+4. Add all **Frontend Environment Variables**. Set `VITE_API_URL` to the Backend URL from Phase 2!
+5. Deploy.
 
-### ML Service (`ml_service/.env`)
-Create a `.env` file in the `/ml_service` folder with:
-```env
-PORT=8000
-FRONTEND_URL=http://localhost:5173           # Enforced for secure CORS restriction
-GEMINI_API_KEY=your_gemini_api_key
-GROQ_API_KEY=your_groq_api_key
-VITE_SUPABASE_URL=https://your-supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
-
-### Frontend Client (`client/.env`)
-Create a `.env` file in the `/client` folder with:
-```env
-VITE_SUPABASE_URL=https://your-supabase-project-url.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key-here
-VITE_API_URL=http://localhost:5000
-```
-
----
-
-## 🛡️ Production Hardening Protections (Phase 1)
-The system has been hardened for production-grade security:
-1. **Zero Hardcoded Secrets**: All keys, URLs, and secrets have been verified and migrated to environment variables. Real credentials are never committed.
-2. **CORS Restrictions**: Wildcard CORS domains have been replaced in the Python FastAPI microservice with a strict whitelist domain check enforcing `FRONTEND_URL`.
-3. **Secure JWT Startup Check**: The Express server will gracefully crash (`process.exit(1)`) on boot if the required `JWT_SECRET` environment variable is not defined.
-4. **API Rate Limiting**: Centralized rate limiting has been enforced via `express-rate-limit`:
-   - **Chat APIs** (`/api/ai/chat/*`): 20 requests/minute limit.
-   - **Review Submissions** (`/api/feedback/submit`): 10 requests/minute limit.
-   - **Auth Gateways** (`/api/auth/*`): 5 requests/minute limit.
-   - Evaluated requests exceeding thresholds are returned with standard HTTP 429 response structures.
-
+### Phase 4: Final Verification
+1. Open the Vercel frontend URL.
+2. The diagnostic panel will automatically ping your Vercel backend (`/api/health`).
+3. The Vercel backend will verify its own `GROQ_API_KEY` (AI: Yes) and asynchronously ping the Render ML service.
+4. Try sending a chat message to ensure Groq responds and Supabase RAG retrieves products!

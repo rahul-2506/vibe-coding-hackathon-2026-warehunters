@@ -138,22 +138,30 @@ envValidator.validate();
 
 // 5. Database Initialization & Startup
 logger.info('Awaiting database verification...', 'BOOT');
-db.initialize()
-    .then(() => {
-        serverInstance = app.listen(PORT, () => {
-            logger.info(`Server successfully booted and listening on http://localhost:${PORT}`, 'BOOT');
+
+if (!process.env.VERCEL) {
+    // Local development or traditional server hosting (e.g. Render/Railway)
+    db.initialize()
+        .then(() => {
+            serverInstance = app.listen(PORT, () => {
+                logger.info(`Server successfully booted and listening on http://localhost:${PORT}`, 'BOOT');
+            });
+        })
+        .catch(err => {
+            console.error('\x1b[31m%s\x1b[0m', '==================================================');
+            console.error('\x1b[31m%s\x1b[0m', '  FATAL ERROR: DATABASE INITIALIZATION FAILED     ');
+            console.error('\x1b[31m%s\x1b[0m', '==================================================');
+            console.error('\x1b[31m%s\x1b[0m', `The server failed to connect to Supabase: ${err.message}`);
+            console.error('\x1b[31m%s\x1b[0m', 'Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+            console.error('\x1b[31m%s\x1b[0m', '==================================================');
+            logger.error('Fatal database initialization error. Shutting down process loudly.', err, 'BOOT');
+            process.exit(1);
         });
-    })
-    .catch(err => {
-        console.error('\x1b[31m%s\x1b[0m', '==================================================');
-        console.error('\x1b[31m%s\x1b[0m', '  FATAL ERROR: DATABASE INITIALIZATION FAILED     ');
-        console.error('\x1b[31m%s\x1b[0m', '==================================================');
-        console.error('\x1b[31m%s\x1b[0m', `The server failed to connect to Supabase: ${err.message}`);
-        console.error('\x1b[31m%s\x1b[0m', 'Verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-        console.error('\x1b[31m%s\x1b[0m', '==================================================');
-        logger.error('Fatal database initialization error. Shutting down process loudly.', err, 'BOOT');
-        process.exit(1);
-    });
+} else {
+    // Vercel Serverless environment
+    // Initialize DB asynchronously without blocking module export
+    db.initialize().catch(err => logger.error('Database init failed on Vercel', err, 'BOOT'));
+}
 
 // 6. Graceful Lifecycle Shutdown Handler
 async function handleGracefulShutdown(signal) {
@@ -182,6 +190,7 @@ process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
 
 // 7. Global Process Error Handlers for Unhandled Rejections and Exceptions
 process.on('uncaughtException', (err) => {
+    console.error('CRITICAL UNCAUGHT EXCEPTION:', err);
     logger.error('CRITICAL: Uncaught Exception detected in process lifecycle!', err, 'CRITICAL');
     logger.warn('Triggering graceful shutdown due to uncaughtException...', 'LIFECYCLE');
     handleGracefulShutdown('uncaughtException');
@@ -190,3 +199,6 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
     logger.error('CRITICAL: Unhandled Promise Rejection detected!', reason instanceof Error ? reason : new Error(String(reason)), 'CRITICAL');
 });
+
+// Export the app for Vercel Serverless environment
+export default app;

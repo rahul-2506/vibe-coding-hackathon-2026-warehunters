@@ -30,3 +30,4 @@ coverage/
 htmlcov/
 **/scratch/
 staged.txt
+my_venv/

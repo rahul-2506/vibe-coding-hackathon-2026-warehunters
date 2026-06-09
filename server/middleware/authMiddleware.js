@@ -33,3 +33,36 @@ export async function authMiddleware(req, res, next) {
         return response.error(res, 'Authentication internal error', err.message, 500);
     }
 }
+
+/**
+ * Optional auth middleware — lets guests through as anonymous.
+ * Used for chat/stream endpoints that should work without login.
+ */
+export async function optionalAuthMiddleware(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            req.user = null;
+            return next();
+        }
+
+        const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+        if (!token) {
+            req.user = null;
+            return next();
+        }
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) {
+            req.user = null;
+        } else {
+            req.user = user;
+            logger.info(`[AUTH] Optionally authorized request to ${req.originalUrl} for user: ${user.email}`, 'AUTH');
+        }
+        next();
+    } catch (err) {
+        // Don't block on errors — just pass through as anonymous
+        req.user = null;
+        next();
+    }
+}
