@@ -1,4 +1,4 @@
-import { supabase } from '../db.js';
+import { supabase, supabaseAdmin } from '../db.js';
 import { logger } from '../utils/logger.js';
 import { aiGateway } from './gateway/aiGateway.js';
 import fetch from 'node-fetch';
@@ -111,7 +111,7 @@ export const feedbackService = {
                 reviewer_score: reviewer_score
             };
 
-            const { error: insErr } = await supabase.from('reviews').insert(reviewRow);
+            const { error: insErr } = await supabaseAdmin.from('reviews').insert(reviewRow);
             if (insErr) {
                 // If column mismatch occurs on unmigrated Supabase DB, fallback to legacy schema inserts
                 logger.warn(`Supabase insert failed with: ${insErr.message}. Retrying with legacy columns fallback.`, 'FEEDBACK');
@@ -124,7 +124,7 @@ export const feedbackService = {
                     user_id: safeUserId,
                     sentiment: userRating >= 4 ? 'positive' : (userRating <= 2 ? 'negative' : 'neutral')
                 };
-                const { error: fallbackErr } = await supabase.from('reviews').insert(legacyRow);
+                const { error: fallbackErr } = await supabaseAdmin.from('reviews').insert(legacyRow);
                 if (fallbackErr) throw fallbackErr;
             } else {
                 logger.info(`Successfully stored Phase 5 review into public.reviews. Trust: ${trust_score}%`, 'FEEDBACK');
