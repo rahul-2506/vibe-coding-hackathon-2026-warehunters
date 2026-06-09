@@ -428,8 +428,8 @@ export const productController = {
             recommendation = `We highly recommend **${winner.title}** because it delivers better overall clinical performance and has higher verified review authenticity.`;
 
             // Call LLM if keys are available
-            const apiKey = geminiKey || process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
-            if (apiKey && !apiKey.startsWith('gsk_')) {
+            const apiKey = process.env.GROQ_API_KEY;
+            if (apiKey) {
                 try {
                     const prompt = `You are a professional product analyst. Compare these two products:
 Product A: ${p1.title} - Description: ${p1.description} - Price: $${p1.price} - Rating: ${p1.rating}
@@ -446,19 +446,26 @@ Return a JSON object containing:
 - "recommendation": (string) Short professional recommendation explaining which to choose.
 Return ONLY valid JSON.`;
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    const url = `https://api.groq.com/openai/v1/chat/completions`;
                     const resLlm = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
+                            model: "llama-3.3-70b-versatile",
+                            messages: [
+                                { role: "user", content: prompt }
+                            ],
+                            response_format: { type: "json_object" },
+                            temperature: 0.1
                         })
                     });
 
                     if (resLlm.ok) {
                         const json = await resLlm.json();
-                        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                        const text = json.choices?.[0]?.message?.content;
                         if (text) {
                             const parsed = JSON.parse(text);
                             prosA = parsed.prosA || prosA;
@@ -467,6 +474,8 @@ Return ONLY valid JSON.`;
                             consB = parsed.consB || consB;
                             recommendation = parsed.recommendation || recommendation;
                         }
+                    } else {
+                        console.error('[compare API] Groq API returned error:', resLlm.status);
                     }
                 } catch (err) {
                     console.error('[compare API] LLM execution failed:', err.message);

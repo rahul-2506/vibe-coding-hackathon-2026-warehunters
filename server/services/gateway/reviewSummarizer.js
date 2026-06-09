@@ -40,7 +40,7 @@ export const reviewSummarizer = {
             let summary = null;
             
             // Try to generate summary using AI
-            const activeKey = geminiKey || process.env.GEMINI_API_KEY;
+            const activeKey = process.env.GROQ_API_KEY;
             
             if (activeKey && reviews && reviews.length > 0) {
                 try {
@@ -60,26 +60,34 @@ export const reviewSummarizer = {
                     }
                     DO NOT include any Markdown formatting, backticks, or trailing characters. Return clean JSON only.`;
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`;
+                    const url = `https://api.groq.com/openai/v1/chat/completions`;
                     const res = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${activeKey}`
+                        },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: `Product: ${prod.title}\nCategory: ${prod.category}\nDescription: ${prod.description}\n\nReviews:\n${reviewCorpus}` }] }],
-                            systemInstruction: { parts: [{ text: systemInstruction }] },
-                            generationConfig: { responseMimeType: 'application/json' }
+                            model: "llama-3.3-70b-versatile",
+                            messages: [
+                                { role: "system", content: systemInstruction },
+                                { role: "user", content: `Product: ${prod.title}\nCategory: ${prod.category}\nDescription: ${prod.description}\n\nReviews:\n${reviewCorpus}` }
+                            ],
+                            response_format: { type: "json_object" },
+                            temperature: 0.1
                         })
                     });
 
                     if (res.ok) {
                         const json = await res.json();
-                        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                        const text = json.choices?.[0]?.message?.content;
                         if (text) {
                             summary = JSON.parse(text);
-                            logger.info(`[REVIEW SUMMARIZER] Successfully generated AI summary for product: ${productId}`, 'AI_GATEWAY');
+                            logger.info(`[REVIEW SUMMARIZER] Successfully generated AI summary for product: ${productId} using Groq`, 'AI_GATEWAY');
                         }
                     } else {
-                        logger.error(`[REVIEW SUMMARIZER] Gemini API returned error: ${res.status}`, new Error('Gemini Fail'), 'AI_GATEWAY');
+                        const errBody = await res.text();
+                        logger.error(`[REVIEW SUMMARIZER] Groq API returned error: ${res.status} ${errBody}`, new Error('Groq Fail'), 'AI_GATEWAY');
                     }
                 } catch (aiErr) {
                     logger.error('[REVIEW SUMMARIZER] AI summary generation failed, falling back to heuristics', aiErr, 'AI_GATEWAY');

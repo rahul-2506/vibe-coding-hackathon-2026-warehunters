@@ -68,8 +68,8 @@ ${contextText || 'No direct matches found in database knowledge base.'}`;
             // Log raw prompt payload
             console.log(`Prompt sent to AI: ${JSON.stringify({ systemInstruction, history: sessionStore.chatHistory })}`);
 
-            // Case A: Gemini Key is present (Primary Stream Option)
-            if (geminiKey) {
+            // Case B: Gemini disabled (Primary Stream Option)
+            if (false) {
                 logger.info('[CHAT SERVICE] Executing live streaming via Gemini API.', 'AI_GATEWAY');
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${geminiKey}`;
                 
@@ -136,8 +136,8 @@ ${contextText || 'No direct matches found in database knowledge base.'}`;
                 }
                 sessionMemory.addAssistantMessage(session.userId || 'anonymous', fullTextAccumulator);
             }
-            // Case B: Groq Key is present (Fallback Stream Option)
-            else if (groqKey) {
+            // Case A: Groq Key is present (Fallback Stream Option)
+            if (groqKey) {
                 logger.info('[CHAT SERVICE] Executing live streaming via Groq API.', 'AI_GATEWAY');
                 const url = 'https://api.groq.com/openai/v1/chat/completions';
                 

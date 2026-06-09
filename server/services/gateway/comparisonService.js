@@ -62,7 +62,7 @@ export const productComparisonService = {
 
             // 4. Generate AI summary analysis text
             let analysisText = "";
-            const activeKey = geminiKey || process.env.GEMINI_API_KEY;
+            const activeKey = process.env.GROQ_API_KEY;
             
             if (activeKey) {
                 try {
@@ -72,19 +72,26 @@ export const productComparisonService = {
 
                     const systemInstruction = `You are ReviewLens' Lead Clinical Skincare Analyst. Compare two products objectively and print a structured battle audit summary. Make the response professional and aesthetic.`;
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${activeKey}`;
+                    const url = `https://api.groq.com/openai/v1/chat/completions`;
                     const res = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${activeKey}`
+                        },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            systemInstruction: { parts: [{ text: systemInstruction }] }
+                            model: "llama-3.3-70b-versatile",
+                            messages: [
+                                { role: "system", content: systemInstruction },
+                                { role: "user", content: prompt }
+                            ],
+                            temperature: 0.1
                         })
                     });
 
                     if (res.ok) {
                         const json = await res.json();
-                        const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+                        const text = json.choices?.[0]?.message?.content;
                         if (text) {
                             analysisText = text;
                         }
