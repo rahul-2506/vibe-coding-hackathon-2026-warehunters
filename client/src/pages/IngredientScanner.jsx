@@ -59,12 +59,13 @@ const IngredientScanner = () => {
         setLoading(true);
         setReport(null);
 
-        const groqKey = localStorage.getItem('groq_api_key') || 
-                        import.meta.env.VITE_GROQ_API_KEY || 
-                        '';
+        const geminiKey = localStorage.getItem('x-gemini-key') || 
+                          localStorage.getItem('gemini_api_key') || 
+                          import.meta.env.VITE_GEMINI_API_KEY || 
+                          '';
 
-        if (!groqKey) {
-            alert("Groq API Key is missing. Please save your API Key in the environment or Admin Panel first.");
+        if (!geminiKey) {
+            alert("Gemini API Key is missing. Please save your API Key in the Chatbot or Admin Panel first.");
             setLoading(false);
             return;
         }
@@ -76,40 +77,73 @@ const IngredientScanner = () => {
             reader.onloadend = async () => {
                 const base64Data = reader.result;
 
-                try {
-                    const prompt = "Look at this product label image. \nExtract all ingredients and return ONLY a JSON array:\n[\n  {\n    \"name\": \"ingredient name\",\n    \"description\": \"one line description\",\n    \"benefits\": [\"benefit1\", \"benefit2\"]\n  }\n]\nNo extra text, only JSON.";
+                let mimeType = 'image/jpeg';
+                let cleanBase64 = base64Data;
+                if (base64Data.startsWith('data:')) {
+                    const match = base64Data.match(/^data:([^;]+);base64,(.*)$/);
+                    if (match) {
+                        mimeType = match[1];
+                        cleanBase64 = match[2];
+                    }
+                }
 
-                    const url = `https://api.groq.com/openai/v1/chat/completions`;
+                try {
+                    const prompt = "Look at this product label image. \nExtract all ingredients and return ONLY a JSON array:\n[\n  {\n    name: ingredient name,\n    description: one line description,\n    benefits: [benefit1, benefit2]\n  }\n]\nNo extra text, only JSON.";
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
                     let res = await fetch(url, {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${groqKey}`
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            model: "llama-3.2-11b-vision-preview",
-                            messages: [
-                                {
-                                    role: "user",
-                                    content: [
-                                        { type: "text", text: prompt },
-                                        { type: "image_url", image_url: { url: base64Data } }
-                                    ]
-                                }
-                            ],
-                            temperature: 0.1
+                            contents: [{
+                                parts: [
+                                    { text: prompt },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: cleanBase64
+                                        }
+                                    }
+                                ]
+                            }],
+                            generationConfig: {
+                                responseMimeType: "application/json"
+                            }
                         })
                     });
 
+                    if (res.status === 404) {
+                        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${geminiKey}`;
+                        res = await fetch(fallbackUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{
+                                    parts: [
+                                        { text: prompt },
+                                        {
+                                            inlineData: {
+                                                mimeType: mimeType,
+                                                data: cleanBase64
+                                            }
+                                        }
+                                    ]
+                                }],
+                                generationConfig: {
+                                    responseMimeType: "application/json"
+                                }
+                            })
+                        });
+                    }
+
                     if (!res.ok) {
-                        const errorText = await res.text();
-                        throw new Error(`Groq API returned status ${res.status}: ${errorText}`);
+                        throw new Error(`Gemini API returned status ${res.status}`);
                     }
 
                     const json = await res.json();
-                    const textResponse = json.choices?.[0]?.message?.content;
+                    const textResponse = json.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (!textResponse) {
-                        throw new Error("Empty response from Groq model");
+                        throw new Error("Empty response from Gemini model");
                     }
 
                     let cleanText = textResponse.trim();
