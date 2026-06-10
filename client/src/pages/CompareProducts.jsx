@@ -333,20 +333,22 @@ const CompareProducts = () => {
     const p1 = safeSelectedProducts[0];
     const p2 = safeSelectedProducts[1];
 
-    // Compute unified premium Skincare Analyst scorecards
+    const isElectronics = (p1?.category || '').toLowerCase().includes('electronics') || (p2?.category || '').toLowerCase().includes('electronics');
+
+    // Compute unified premium Analyst scorecards
     const scorecard1 = (comparisonData && p1) ? {
         "Safety Score": 100 - (comparisonData.fake_analysis?.product_1?.fake_prob || 12),
-        "Ingredient Quality": comparisonData.scores?.product_1?.["Ingredients"] || comparisonData.scores?.product_1?.["Quality"] || Math.round(85 + ((p1.rating || 4.5) * 3) % 12),
+        [isElectronics ? "Build Quality" : "Ingredient Quality"]: comparisonData.scores?.product_1?.["Display"] || comparisonData.scores?.product_1?.["Ingredients"] || comparisonData.scores?.product_1?.["Quality"] || Math.round(85 + ((p1.rating || 4.5) * 3) % 12),
         "Price Value": comparisonData.scores?.product_1?.["Value"] || (p1.price > 1000 ? 72 : p1.price > 500 ? 84 : 91),
-        "Skin Compatibility": comparisonData.scores?.product_1?.["Skin Type"] || comparisonData.scores?.product_1?.["Results"] || Math.round(88 + ((p1.rating || 4.5) * 2) % 10),
+        [isElectronics ? "Performance Score" : "Skin Compatibility"]: comparisonData.scores?.product_1?.["Performance"] || comparisonData.scores?.product_1?.["Skin Type"] || comparisonData.scores?.product_1?.["Results"] || Math.round(88 + ((p1.rating || 4.5) * 2) % 10),
         "Community Rating": Math.round((p1.rating || 4.5) * 20)
     } : {};
 
     const scorecard2 = (comparisonData && p2) ? {
         "Safety Score": 100 - (comparisonData.fake_analysis?.product_2?.fake_prob || 15),
-        "Ingredient Quality": comparisonData.scores?.product_2?.["Ingredients"] || comparisonData.scores?.product_2?.["Quality"] || Math.round(82 + ((p2.rating || 4.2) * 3.5) % 14),
+        [isElectronics ? "Build Quality" : "Ingredient Quality"]: comparisonData.scores?.product_2?.["Display"] || comparisonData.scores?.product_2?.["Ingredients"] || comparisonData.scores?.product_2?.["Quality"] || Math.round(82 + ((p2.rating || 4.2) * 3.5) % 14),
         "Price Value": comparisonData.scores?.product_2?.["Value"] || (p2.price > 1000 ? 70 : p2.price > 500 ? 81 : 89),
-        "Skin Compatibility": comparisonData.scores?.product_2?.["Skin Type"] || comparisonData.scores?.product_2?.["Results"] || Math.round(85 + ((p2.rating || 4.2) * 2.5) % 11),
+        [isElectronics ? "Performance Score" : "Skin Compatibility"]: comparisonData.scores?.product_2?.["Performance"] || comparisonData.scores?.product_2?.["Skin Type"] || comparisonData.scores?.product_2?.["Results"] || Math.round(85 + ((p2.rating || 4.2) * 2.5) % 11),
         "Community Rating": Math.round((p2.rating || 4.2) * 20)
     } : {};
 
@@ -401,6 +403,37 @@ const CompareProducts = () => {
 
     const getProsAndCons = (prod, isOilyWins) => {
         if (!prod) return { pros: [], cons: [] };
+        
+        const cat = (prod.category || '').toLowerCase();
+        const isElec = cat.includes('electronics') || (prod.name || '').toLowerCase().includes('laptop') || (prod.name || '').toLowerCase().includes('buds') || (prod.name || '').toLowerCase().includes('watch');
+        
+        if (isElec) {
+            if (isOilyWins) {
+                return {
+                    pros: [
+                        "Top-tier processor capability and robust multi-tasking.",
+                        "Premium construction materials with high shock resistance.",
+                        "Excellent manufacturer warranty and community backing."
+                    ],
+                    cons: [
+                        "Higher current draw during peak computing loads.",
+                        "Sparsely discounted at major electronics outlets."
+                    ]
+                };
+            } else {
+                return {
+                    pros: [
+                        "Excellent energy efficiency and longer overall battery runtime.",
+                        "Compact, lightweight footprint perfect for mobile use.",
+                        "Highly competitive price-to-specification ratio."
+                    ],
+                    cons: [
+                        "Moderate graphics performance for highly demanding tasks.",
+                        "Internal components cannot be upgraded post-purchase."
+                    ]
+                };
+            }
+        }
         
         if (isOilyWins) {
             return {
@@ -697,61 +730,81 @@ const CompareProducts = () => {
                         handleSaveComparison={handleSaveComparison} 
                     />
 
-                    {/* Skincare Battle Mode Cards */}
+                    {/* Skincare/Hardware Battle Mode Cards */}
                     <div className="max-w-5xl mx-auto w-full">
                         <div className="flex items-center gap-2 mb-6">
                             <GitCompare className="text-purple-400 animate-pulse" size={20} />
-                            <h2 className="text-xl font-extrabold text-white tracking-tight">Dermatological Battle Cards</h2>
+                            <h2 className="text-xl font-extrabold text-white tracking-tight">
+                                {isElectronics ? "Hardware Battle Cards" : "Dermatological Battle Cards"}
+                            </h2>
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                            {/* Oily Skin Card */}
+                            {/* Oily Skin / Battery Life Card */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
-                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-teal-400 bg-teal-500/10 rounded-bl-xl uppercase tracking-wider">Skin Type</div>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-teal-400 bg-teal-500/10 rounded-bl-xl uppercase tracking-wider">
+                                    {isElectronics ? "Battery" : "Skin Type"}
+                                </div>
                                 <div>
-                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Oily Skin Winner</h4>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
+                                        {isElectronics ? "Battery Life Winner" : "Oily Skin Winner"}
+                                    </h4>
                                     <h3 className="text-sm font-extrabold text-white leading-snug">
-                                        {(comparisonData.scores?.product_1?.['Oily Skin'] || 0) >= (comparisonData.scores?.product_2?.['Oily Skin'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
+                                        {(comparisonData.scores?.product_1?.[isElectronics ? 'Battery' : 'Oily Skin'] || 0) >= (comparisonData.scores?.product_2?.[isElectronics ? 'Battery' : 'Oily Skin'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
                                     </h3>
                                 </div>
                                 <div className="mt-4 flex items-center justify-between">
-                                    <span className="text-[10px] text-slate-500 font-semibold">Match Rating</span>
+                                    <span className="text-[10px] text-slate-500 font-semibold">
+                                        {isElectronics ? "Battery Score" : "Match Rating"}
+                                    </span>
                                     <span className="text-xs font-black text-teal-400">
-                                        {Math.max(comparisonData.scores?.product_1?.['Oily Skin'] || 0, comparisonData.scores?.product_2?.['Oily Skin'] || 0)}%
+                                        {Math.max(comparisonData.scores?.product_1?.[isElectronics ? 'Battery' : 'Oily Skin'] || 0, comparisonData.scores?.product_2?.[isElectronics ? 'Battery' : 'Oily Skin'] || 0)}%
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Dry Skin Card */}
+                            {/* Dry Skin / Performance Card */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
-                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-sky-400 bg-sky-500/10 rounded-bl-xl uppercase tracking-wider">Hydration</div>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-sky-400 bg-sky-500/10 rounded-bl-xl uppercase tracking-wider">
+                                    {isElectronics ? "Processor" : "Hydration"}
+                                </div>
                                 <div>
-                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Dry Skin Winner</h4>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
+                                        {isElectronics ? "Performance Winner" : "Dry Skin Winner"}
+                                    </h4>
                                     <h3 className="text-sm font-extrabold text-white leading-snug">
-                                        {(comparisonData.scores?.product_1?.['Dry Skin'] || 0) >= (comparisonData.scores?.product_2?.['Dry Skin'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
+                                        {(comparisonData.scores?.product_1?.[isElectronics ? 'Performance' : 'Dry Skin'] || 0) >= (comparisonData.scores?.product_2?.[isElectronics ? 'Performance' : 'Dry Skin'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
                                     </h3>
                                 </div>
                                 <div className="mt-4 flex items-center justify-between">
-                                    <span className="text-[10px] text-slate-500 font-semibold">Moisture Index</span>
+                                    <span className="text-[10px] text-slate-500 font-semibold">
+                                        {isElectronics ? "Compute Index" : "Moisture Index"}
+                                    </span>
                                     <span className="text-xs font-black text-sky-400">
-                                        {Math.max(comparisonData.scores?.product_1?.['Dry Skin'] || 0, comparisonData.scores?.product_2?.['Dry Skin'] || 0)}%
+                                        {Math.max(comparisonData.scores?.product_1?.[isElectronics ? 'Performance' : 'Dry Skin'] || 0, comparisonData.scores?.product_2?.[isElectronics ? 'Performance' : 'Dry Skin'] || 0)}%
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Ingredients Card */}
+                            {/* Ingredients / Display Card */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/5 flex flex-col justify-between relative overflow-hidden" style={{ background: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(10px)' }}>
-                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-purple-400 bg-purple-500/10 rounded-bl-xl uppercase tracking-wider">Formula</div>
+                                <div className="absolute top-0 right-0 p-2 text-[9px] font-bold text-purple-400 bg-purple-500/10 rounded-bl-xl uppercase tracking-wider">
+                                    {isElectronics ? "Hardware" : "Formula"}
+                                </div>
                                 <div>
-                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Ingredients Winner</h4>
+                                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
+                                        {isElectronics ? "Display Winner" : "Ingredients Winner"}
+                                    </h4>
                                     <h3 className="text-sm font-extrabold text-white leading-snug">
-                                        {(comparisonData.scores?.product_1?.['Ingredients'] || 0) >= (comparisonData.scores?.product_2?.['Ingredients'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
+                                        {(comparisonData.scores?.product_1?.[isElectronics ? 'Display' : 'Ingredients'] || 0) >= (comparisonData.scores?.product_2?.[isElectronics ? 'Display' : 'Ingredients'] || 0) ? (p1?.name || p1?.title || 'Product A') : (p2?.name || p2?.title || 'Product B')}
                                     </h3>
                                 </div>
                                 <div className="mt-4 flex items-center justify-between">
-                                    <span className="text-[10px] text-slate-500 font-semibold">Active Potency</span>
+                                    <span className="text-[10px] text-slate-500 font-semibold">
+                                        {isElectronics ? "Panel Clarity" : "Active Potency"}
+                                    </span>
                                     <span className="text-xs font-black text-purple-400">
-                                        {Math.max(comparisonData.scores?.product_1?.['Ingredients'] || 0, comparisonData.scores?.product_2?.['Ingredients'] || 0)}%
+                                        {Math.max(comparisonData.scores?.product_1?.[isElectronics ? 'Display' : 'Ingredients'] || 0, comparisonData.scores?.product_2?.[isElectronics ? 'Display' : 'Ingredients'] || 0)}%
                                     </span>
                                 </div>
                             </div>

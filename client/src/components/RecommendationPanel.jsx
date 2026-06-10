@@ -12,6 +12,7 @@ export const RecommendationPanel = ({
     if (!comparisonData) return null;
 
     const winnerName = comparisonData.winner?.title || comparisonData.winner?.name || 'Product A';
+    const isElectronics = (p1?.category || '').toLowerCase().includes('electronics') || (p2?.category || '').toLowerCase().includes('electronics');
     
     return (
         <div className="flex flex-col gap-10 w-full">
@@ -36,7 +37,9 @@ export const RecommendationPanel = ({
                 <div className="flex-1 flex flex-col">
                     <div className="flex items-center gap-2 mb-3">
                         <Sparkles className="text-purple-400" size={16} />
-                        <span className="text-[10px] font-extrabold text-purple-300 tracking-widest uppercase">Skincare AI Analyst Commentary</span>
+                        <span className="text-[10px] font-extrabold text-purple-300 tracking-widest uppercase">
+                            {isElectronics ? "Technology AI Analyst Commentary" : "Skincare AI Analyst Commentary"}
+                        </span>
                     </div>
                     <div className="text-sm text-slate-300 leading-relaxed markdown-body mb-6 pr-4">
                         {comparisonData.analysis ? (
@@ -69,16 +72,21 @@ export const RecommendationPanel = ({
                 </div>
             </div>
 
-            {/* 2. SKIN SUITABILITY DEEP CALLOUTS (AI SUMMARY) */}
+            {/* 2. CATEGORY ADAPTED ADVANTAGE CALLOUTS (AI SUMMARY) */}
             <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto w-full">
                 <div className="bg-slate-900/30 border border-purple-500/10 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl pointer-events-none rounded-full"></div>
                     <div className="flex items-center gap-2 mb-3 text-purple-400">
                         <Sparkles size={16} />
-                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p1?.name || p1?.title || 'Product A').substring(0, 15)}... is better for Oily Skin</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest">
+                            Why {(p1?.name || p1?.title || 'Product A').substring(0, 15)}... is better for {isElectronics ? "Portability & Convenience" : "Oily Skin"}
+                        </h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                        Formulated with targeted bioactive compounds that penetrate deep into upper dermal layers to actively clear excess sebum. The lightweight formulation guarantees high tolerability without leaving heavy lipid traces, keeping skin texture clean and matte.
+                        {isElectronics 
+                            ? "Designed with high-density energy cells for prolonged off-grid performance and lightweight materials that make daily transit effortless."
+                            : "Formulated with targeted bioactive compounds that penetrate deep into upper dermal layers to actively clear excess sebum. The lightweight formulation guarantees high tolerability without leaving heavy lipid traces, keeping skin texture clean and matte."
+                        }
                     </p>
                 </div>
                 
@@ -86,10 +94,15 @@ export const RecommendationPanel = ({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl pointer-events-none rounded-full"></div>
                     <div className="flex items-center gap-2 mb-3 text-emerald-400">
                         <Sparkles size={16} />
-                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p2?.name || p2?.title || 'Product B').substring(0, 15)}... is better for Sensitive Skin</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest">
+                            Why {(p2?.name || p2?.title || 'Product B').substring(0, 15)}... is better for {isElectronics ? "High-Load Performance" : "Sensitive Skin"}
+                        </h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                        Employs a highly gentle humectant barrier repair network that binds moisture molecules to prevent epidermal water loss. Free of intensive peeling acids, it acts as a calming cellular buffer to soothe redness and minimize friction reactions.
+                        {isElectronics
+                            ? "Equipped with advanced internal architectures and optimized hardware cooling paths that prevent thermal throttling under heavy workflows."
+                            : "Employs a highly gentle humectant barrier repair network that binds moisture molecules to prevent epidermal water loss. Free of intensive peeling acids, it acts as a calming cellular buffer to soothe redness and minimize friction reactions."
+                        }
                     </p>
                 </div>
             </div>

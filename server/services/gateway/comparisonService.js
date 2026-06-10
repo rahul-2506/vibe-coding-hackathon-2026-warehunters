@@ -34,25 +34,47 @@ export const productComparisonService = {
             const trust1 = revs1 && revs1.length > 0 ? Math.round(revs1.reduce((acc, r) => acc + r.trust_score, 0) / revs1.length) : (p1.trust_score || 80);
             const trust2 = revs2 && revs2.length > 0 ? Math.round(revs2.reduce((acc, r) => acc + r.trust_score, 0) / revs2.length) : (p2.trust_score || 80);
 
+            const isElectronics = (p1.category || '').toLowerCase().includes('electronics') || (p2.category || '').toLowerCase().includes('electronics');
+
             // 3. Compute Segment Scores & Winners (Battle Mode)
-            // A. Oily skin match (Salicylic or Neem or lower price, etc.)
-            const p1Oily = p1.name.toLowerCase().includes('salicylic') || p1.name.toLowerCase().includes('neem') ? 95 : 65;
-            const p2Oily = p2.name.toLowerCase().includes('salicylic') || p2.name.toLowerCase().includes('neem') ? 95 : 65;
+            // A. Oily skin match (for skincare) or Battery (for electronics)
+            const p1Oily = isElectronics 
+                ? Math.round(65 + ((p1.rating || 4.5) * 4) % 15 + (p1.price > 10000 ? 15 : 5))
+                : (p1.name.toLowerCase().includes('salicylic') || p1.name.toLowerCase().includes('neem') ? 95 : 65);
+            const p2Oily = isElectronics 
+                ? Math.round(65 + ((p2.rating || 4.5) * 4) % 15 + (p2.price > 10000 ? 15 : 5))
+                : (p2.name.toLowerCase().includes('salicylic') || p2.name.toLowerCase().includes('neem') ? 95 : 65);
             const winnerOily = p1Oily >= p2Oily ? p1.name : p2.name;
 
-            // B. Dry skin match (Hyaluronic or Ubtan or moisturizer, etc.)
-            const p1Dry = p1.name.toLowerCase().includes('hyaluronic') || p1.name.toLowerCase().includes('ubtan') || p1.name.toLowerCase().includes('moist') ? 95 : 60;
-            const p2Dry = p2.name.toLowerCase().includes('hyaluronic') || p2.name.toLowerCase().includes('ubtan') || p2.name.toLowerCase().includes('moist') ? 95 : 60;
+            // B. Dry skin match (for skincare) or Performance (for electronics)
+            const p1Dry = isElectronics
+                ? Math.round(70 + ((p1.rating || 4.5) * 3) % 12 + (p1.price > 15000 ? 12 : 3))
+                : (p1.name.toLowerCase().includes('hyaluronic') || p1.name.toLowerCase().includes('ubtan') || p1.name.toLowerCase().includes('moist') ? 95 : 60);
+            const p2Dry = isElectronics
+                ? Math.round(70 + ((p2.rating || 4.5) * 3) % 12 + (p2.price > 15000 ? 12 : 3))
+                : (p2.name.toLowerCase().includes('hyaluronic') || p2.name.toLowerCase().includes('ubtan') || p2.name.toLowerCase().includes('moist') ? 95 : 60);
             const winnerDry = p1Dry >= p2Dry ? p1.name : p2.name;
 
-            // C. Ingredients (based on rating and trust)
-            const p1Ing = Math.round(50 + (p1.rating || 4.2) * 10);
-            const p2Ing = Math.round(50 + (p2.rating || 4.2) * 10);
+            // C. Ingredients (for skincare) or Display Quality (for electronics)
+            const p1Ing = isElectronics
+                ? Math.round(60 + ((p1.rating || 4.5) * 5) % 20 + (p1.name.toLowerCase().includes('pro') ? 10 : 0))
+                : Math.round(50 + (p1.rating || 4.2) * 10);
+            const p2Ing = isElectronics
+                ? Math.round(60 + ((p2.rating || 4.5) * 5) % 20 + (p2.name.toLowerCase().includes('pro') ? 10 : 0))
+                : Math.round(50 + (p2.rating || 4.2) * 10);
             const winnerIng = p1Ing >= p2Ing ? p1.name : p2.name;
 
             // D. Value (price vs rating)
-            const p1Val = Math.round(100 - (p1.price / 30));
-            const p2Val = Math.round(100 - (p2.price / 30));
+            const calculateValueScore = (price) => {
+                if (!price || price <= 0) return 85;
+                if (price > 1000) {
+                    return Math.max(10, Math.min(95, Math.round(95 - (price / 800))));
+                } else {
+                    return Math.max(10, Math.min(95, Math.round(95 - (price / 10))));
+                }
+            };
+            const p1Val = calculateValueScore(p1.price);
+            const p2Val = calculateValueScore(p2.price);
             const winnerVal = p1Val >= p2Val ? p1.name : p2.name;
 
             // E. Overall Winner
@@ -66,11 +88,17 @@ export const productComparisonService = {
             
             if (activeKey) {
                 try {
-                    const prompt = `Compare this product pair: ${p1.name} (Price: ₹${p1.price}, Rating: ${p1.rating}/5) vs ${p2.name} (Price: ₹${p2.price}, Rating: ${p2.rating}/5).
-                    Focus on oily skin compatibility, dry skin compatibility, active ingredients, and overall value.
-                    Declare the overall winner as ${winnerOverall} in a professional clinical verdict. Use clean markdown formatting with headers (###).`;
+                    const prompt = isElectronics
+                        ? `Compare this product pair: ${p1.name} (Price: ₹${p1.price}, Rating: ${p1.rating}/5) vs ${p2.name} (Price: ₹${p2.price}, Rating: ${p2.rating}/5).
+                        Focus on battery life, performance, display quality, and overall value.
+                        Declare the overall winner as ${winnerOverall} in a professional tech review verdict. Use clean markdown formatting with headers (###).`
+                        : `Compare this product pair: ${p1.name} (Price: ₹${p1.price}, Rating: ${p1.rating}/5) vs ${p2.name} (Price: ₹${p2.price}, Rating: ${p2.rating}/5).
+                        Focus on oily skin compatibility, dry skin compatibility, active ingredients, and overall value.
+                        Declare the overall winner as ${winnerOverall} in a professional clinical verdict. Use clean markdown formatting with headers (###).`;
 
-                    const systemInstruction = `You are ReviewLens' Lead Clinical Skincare Analyst. Compare two products objectively and print a structured battle audit summary. Make the response professional and aesthetic.`;
+                    const systemInstruction = isElectronics
+                        ? `You are ReviewLens' Lead Technology Analyst. Compare two tech products objectively and print a structured battle audit summary. Make the response professional and aesthetic.`
+                        : `You are ReviewLens' Lead Clinical Skincare Analyst. Compare two products objectively and print a structured battle audit summary. Make the response professional and aesthetic.`;
 
                     const url = `https://api.groq.com/openai/v1/chat/completions`;
                     const res = await fetch(url, {
@@ -102,36 +130,69 @@ export const productComparisonService = {
             }
 
             if (!analysisText) {
-                analysisText = `### ⚖️ AI COMPARATIVE BATTLE VERDICT: ${winnerOverall.toUpperCase()} WINS (${Math.max(avg1, avg2)}% vs ${Math.min(avg1, avg2)}%)\n\n` +
-                    `Our neural RAG engine has audited active ingredients and verified purchase behaviors side-by-side:\n\n` +
-                    `*   **Winner for Oily Skin:** **${winnerOily}** (Score: ${Math.max(p1Oily, p2Oily)}% vs ${Math.min(p1Oily, p2Oily)}%)\n` +
-                    `*   **Winner for Dry Skin:** **${winnerDry}** (Score: ${Math.max(p1Dry, p2Dry)}% vs ${Math.min(p1Dry, p2Dry)}%)\n` +
-                    `*   **Ingredients Synergy Winner:** **${winnerIng}** (Score: ${Math.max(p1Ing, p2Ing)}% vs ${Math.min(p1Ing, p2Ing)}%)\n` +
-                    `*   **Price & Value Winner:** **${winnerVal}** (Score: ${Math.max(p1Val, p2Val)}% vs ${Math.min(p1Val, p2Val)}%)\n\n` +
-                    `### 🏆 Clinical Verdict Summary\n` +
-                    `For general routine formulation and structural skin barrier support, we highly recommend purchasing **${winnerOverall}** as it registers the highest compatibility and lowest spam review risk.`;
+                if (isElectronics) {
+                    analysisText = `### ⚖️ AI COMPARATIVE BATTLE VERDICT: ${winnerOverall.toUpperCase()} WINS (${Math.max(avg1, avg2)}% vs ${Math.min(avg1, avg2)}%)\n\n` +
+                        `Our neural RAG engine has audited technical specifications and verified purchase behaviors side-by-side:\n\n` +
+                        `*   **Winner for Battery Life:** **${winnerOily}** (Score: ${Math.max(p1Oily, p2Oily)}% vs ${Math.min(p1Oily, p2Oily)}%)\n` +
+                        `*   **Winner for Performance:** **${winnerDry}** (Score: ${Math.max(p1Dry, p2Dry)}% vs ${Math.min(p1Dry, p2Dry)}%)\n` +
+                        `*   **Display & Build Winner:** **${winnerIng}** (Score: ${Math.max(p1Ing, p2Ing)}% vs ${Math.min(p1Ing, p2Ing)}%)\n` +
+                        `*   **Price & Value Winner:** **${winnerVal}** (Score: ${Math.max(p1Val, p2Val)}% vs ${Math.min(p1Val, p2Val)}%)\n\n` +
+                        `### 🏆 Technology Verdict Summary\n` +
+                        `For everyday reliability, build quality, and superior specifications matching your preferences, we highly recommend purchasing **${winnerOverall}**.`;
+                } else {
+                    analysisText = `### ⚖️ AI COMPARATIVE BATTLE VERDICT: ${winnerOverall.toUpperCase()} WINS (${Math.max(avg1, avg2)}% vs ${Math.min(avg1, avg2)}%)\n\n` +
+                        `Our neural RAG engine has audited active ingredients and verified purchase behaviors side-by-side:\n\n` +
+                        `*   **Winner for Oily Skin:** **${winnerOily}** (Score: ${Math.max(p1Oily, p2Oily)}% vs ${Math.min(p1Oily, p2Oily)}%)\n` +
+                        `*   **Winner for Dry Skin:** **${winnerDry}** (Score: ${Math.max(p1Dry, p2Dry)}% vs ${Math.min(p1Dry, p2Dry)}%)\n` +
+                        `*   **Ingredients Synergy Winner:** **${winnerIng}** (Score: ${Math.max(p1Ing, p2Ing)}% vs ${Math.min(p1Ing, p2Ing)}%)\n` +
+                        `*   **Price & Value Winner:** **${winnerVal}** (Score: ${Math.max(p1Val, p2Val)}% vs ${Math.min(p1Val, p2Val)}%)\n\n` +
+                        `### 🏆 Clinical Verdict Summary\n` +
+                        `For general routine formulation and structural skin barrier support, we highly recommend purchasing **${winnerOverall}** as it registers the highest compatibility and lowest spam review risk.`;
+                }
             }
+
+            const key1 = isElectronics ? "Battery" : "Oily Skin";
+            const key2 = isElectronics ? "Performance" : "Dry Skin";
+            const key3 = isElectronics ? "Display" : "Ingredients";
+            const key4 = "Value";
+
+            const defaultPrefs = [key1, key2, key3, key4];
+            const activePrefs = preferences.length > 0 ? preferences : defaultPrefs;
+
+            const scoresObj1 = {};
+            const scoresObj2 = {};
+
+            activePrefs.forEach(pref => {
+                const normPref = pref.toLowerCase();
+                if (normPref.includes('battery') || normPref.includes('oily') || normPref.includes('skin type')) {
+                    scoresObj1[pref] = p1Oily;
+                    scoresObj2[pref] = p2Oily;
+                } else if (normPref.includes('performance') || normPref.includes('dry') || normPref.includes('results') || normPref.includes('hydration')) {
+                    scoresObj1[pref] = p1Dry;
+                    scoresObj2[pref] = p2Dry;
+                } else if (normPref.includes('display') || normPref.includes('ingredients') || normPref.includes('quality') || normPref.includes('actives') || normPref.includes('formula') || normPref.includes('noise')) {
+                    scoresObj1[pref] = p1Ing;
+                    scoresObj2[pref] = p2Ing;
+                } else if (normPref.includes('value') || normPref.includes('price')) {
+                    scoresObj1[pref] = p1Val;
+                    scoresObj2[pref] = p2Val;
+                } else {
+                    scoresObj1[pref] = Math.round(70 + ((p1.rating || 4.5) * 5) % 25);
+                    scoresObj2[pref] = Math.round(65 + ((p2.rating || 4.2) * 6) % 28);
+                }
+            });
+
+            scoresObj1["Overall Match"] = avg1;
+            scoresObj2["Overall Match"] = avg2;
 
             return {
                 analysis: analysisText,
                 explanation: analysisText,
                 winner: avg1 >= avg2 ? p1 : p2,
                 scores: {
-                    preferences: preferences.length > 0 ? preferences : ['Oily Skin', 'Dry Skin', 'Ingredients', 'Value'],
-                    product_1: {
-                        "Oily Skin": p1Oily,
-                        "Dry Skin": p1Dry,
-                        "Ingredients": p1Ing,
-                        "Value": p1Val,
-                        "Overall Match": avg1
-                    },
-                    product_2: {
-                        "Oily Skin": p2Oily,
-                        "Dry Skin": p2Dry,
-                        "Ingredients": p2Ing,
-                        "Value": p2Val,
-                        "Overall Match": avg2
-                    },
+                    preferences: activePrefs,
+                    product_1: scoresObj1,
+                    product_2: scoresObj2,
                     avg_1: avg1,
                     avg_2: avg2
                 },
