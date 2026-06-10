@@ -56,3 +56,14 @@ export const productsLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Admin APIs: 15 requests/minute
+export const adminLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 15,
+    handler: (req, res) => {
+        return response.error(res, 'Too many admin API requests. Please try again after 60 seconds.', 'Rate limit exceeded', 429);
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+

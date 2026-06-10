@@ -440,7 +440,7 @@ const Chatbot = () => {
     
     // API Keys Settings state
     const [showSettings, setShowSettings] = useState(false);
-    const [geminiKey, setGeminiKey] = useState(localStorage.getItem('x-gemini-key') || '');
+    const [geminiKey, setGeminiKey] = useState(localStorage.getItem('x-gemini-key') || import.meta.env.VITE_GEMINI_API_KEY || '');
     const [openaiKey, setOpenaiKey] = useState(localStorage.getItem('x-openai-key') || '');
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);

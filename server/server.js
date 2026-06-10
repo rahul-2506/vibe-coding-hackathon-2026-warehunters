@@ -25,7 +25,7 @@ import adminRoutes from './routes/admin.js';
 import { aiService } from './services/aiService.js';
 
 // Rate Limiting Middlewares
-import { authLimiter, chatLimiter, reviewLimiter, productsLimiter, aiLimiter } from './middleware/rateLimiter.js';
+import { authLimiter, chatLimiter, reviewLimiter, productsLimiter, aiLimiter, adminLimiter } from './middleware/rateLimiter.js';
 
 // Logger Utility
 import { logger } from './utils/logger.js';
@@ -125,7 +125,7 @@ app.all('/api/feedbacks*', (req, res) => {
 
 app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/compare', aiLimiter, compareRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminLimiter, adminRoutes);
 
 // 3. Centralized Universal Error Handler Middleware
 app.use(errorMiddleware);

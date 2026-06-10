@@ -12,7 +12,7 @@ const AdminPage = () => {
     const [activeTab, setActiveTab] = useState('catalog');
 
     // API Keys state (for browser local storage)
-    const [geminiKey, setGeminiKey] = useState(localStorage.getItem('x-gemini-key') || '');
+    const [geminiKey, setGeminiKey] = useState(localStorage.getItem('x-gemini-key') || import.meta.env.VITE_GEMINI_API_KEY || '');
     const [openaiKey, setOpenaiKey] = useState(localStorage.getItem('x-openai-key') || '');
 
     // Catalog Ingestion state
