@@ -149,7 +149,8 @@ const CompareProducts = () => {
             const pName = (p.name || p.title || '').toLowerCase();
             const matchesSearch = pName.includes(search1.toLowerCase());
             const notSelected = !safeSelected[1] || p.id !== safeSelected[1].id;
-            return matchesSearch && notSelected;
+            const sameCategory = !safeSelected[1] || (p.category || '').toLowerCase() === (safeSelected[1].category || '').toLowerCase();
+            return matchesSearch && notSelected && sameCategory;
         }).slice(0, 5);
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSuggestions1(filtered);
@@ -167,7 +168,8 @@ const CompareProducts = () => {
             const pName = (p.name || p.title || '').toLowerCase();
             const matchesSearch = pName.includes(search2.toLowerCase());
             const notSelected = !safeSelected[0] || p.id !== safeSelected[0].id;
-            return matchesSearch && notSelected;
+            const sameCategory = !safeSelected[0] || (p.category || '').toLowerCase() === (safeSelected[0].category || '').toLowerCase();
+            return matchesSearch && notSelected && sameCategory;
         }).slice(0, 5);
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSuggestions2(filtered);

@@ -19,6 +19,14 @@ export const ComparisonProvider = ({ children }) => {
             return;
         }
         
+        if (selectedProducts.length > 0) {
+            const firstProduct = selectedProducts[0];
+            if ((firstProduct.category || '').toLowerCase() !== (product.category || '').toLowerCase()) {
+                alert(`You can only compare products within the same category (${firstProduct.category}).`);
+                return;
+            }
+        }
+        
         if (selectedProducts.length >= 2) {
             alert("Maximum comparison limit reached.");
             return;
