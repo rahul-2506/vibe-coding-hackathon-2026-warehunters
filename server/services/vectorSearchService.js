@@ -64,7 +64,7 @@ export const vectorSearchService = {
      * 6. Metadata Filtering & Details Expansion
      * 7. Preference Ranking & Output Generation
      */
-    async semanticSearch(query, category = null, budget = null, limit = 12, userPreferences = null) {
+    async semanticSearch(query, category = null, budget = null, limit = 12, userPreferences = null, keys = {}) {
         logger.info(`[Vector Search] Executing semantic search pipeline for: "${query}"`, 'SEARCH_PIPELINE');
 
         // Stage 1: Query input and normalization
@@ -118,7 +118,7 @@ export const vectorSearchService = {
         // Stage 4: Dual Retrieval (Vector Search)
         try {
             logger.info(`[Vector Search] Generating query embedding...`);
-            const queryEmbedding = await embeddingService.generateEmbedding(cleanQuery);
+            const queryEmbedding = await embeddingService.generateEmbedding(cleanQuery, keys.geminiKey, keys.openaiKey);
             
             logger.info(`[Vector Search] Querying match_products RPC...`);
             const { data, error } = await supabase.rpc('match_products', {

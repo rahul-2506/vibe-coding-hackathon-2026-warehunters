@@ -96,8 +96,8 @@ const Products = () => {
         }
         setError('');
         try {
-            const geminiKey = localStorage.getItem('gemini_api_key') || '';
-            const groqKey = localStorage.getItem('groq_api_key') || '';
+            const geminiKey = localStorage.getItem('x-gemini-key') || localStorage.getItem('gemini_api_key') || '';
+            const groqKey = localStorage.getItem('x-groq-key') || localStorage.getItem('groq_api_key') || '';
 
             const params = new URLSearchParams();
             if (debouncedQuery) params.append('q', debouncedQuery);

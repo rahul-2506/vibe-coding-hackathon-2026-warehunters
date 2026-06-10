@@ -161,10 +161,13 @@ export const productController = {
                 }
             }
 
+            const geminiKey = req.headers['x-gemini-key'] || null;
+            const openaiKey = req.headers['x-openai-key'] || null;
+            const groqKey = req.headers['x-groq-key'] || process.env.GROQ_API_KEY || null;
+
             if (q) {
-                const geminiKey = req.headers['x-gemini-key'] || process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIzaSy') ? process.env.AI_API_KEY : null);
-                const groqKey = req.headers['x-groq-key'] || process.env.GROQ_API_KEY || null;
-                memoryManager.updateMemory(userId, `I am looking for: "${q}"${category ? ` in category "${category}"` : ''}`, { geminiKey, groqKey })
+                const memoryGeminiKey = geminiKey || process.env.GEMINI_API_KEY || (process.env.AI_API_KEY?.startsWith('AIzaSy') ? process.env.AI_API_KEY : null);
+                memoryManager.updateMemory(userId, `I am looking for: "${q}"${category ? ` in category "${category}"` : ''}`, { geminiKey: memoryGeminiKey, groqKey })
                     .catch(err => logger.error(`[PRODUCT CONTROLLER] Failed to update user memory: ${err.message}`, 'PRODUCT_CONTROLLER'));
             }
 
@@ -193,7 +196,8 @@ export const productController = {
                     category || null,
                     budgetVal,
                     100, // Fetch a reasonably large candidate set for RRF and metadata filters
-                    userPreferences
+                    userPreferences,
+                    { geminiKey, openaiKey }
                 );
             } catch (err) {
                 logger.warn(`[PRODUCT CONTROLLER] Vector semantic search failed: ${err.message}. Proceeding with empty results.`, 'PRODUCT_CONTROLLER');
