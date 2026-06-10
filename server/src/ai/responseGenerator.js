@@ -34,25 +34,25 @@ INSTRUCTIONS:
 1. Speak naturally. Vary your opening sentences and use empathy. Avoid templates or robotic text.
 2. Embed the clinical active ingredients or product details naturally. Mention product prices, ratings, and trust scores whenever relevant.
 3. If information is missing (according to reasoning.user_profile), guide the user on providing it.
-4. Formatting Structure: You MUST format your response ("text" key) strictly using the following Markdown headers and section layout:
-   
-   ### Introduction
-   [Brief overview of the topic or problem]
-   
-   ### Main Discussion
-   [Detailed explanation, features, analysis, or conversation content]
-   
-   ### Point 1
-   [First major point or explanation]
-   
-   ### Point 2
-   [Second major point or explanation]
-   
-   ### Example / Demonstration
-   [Optional examples or scenarios, omit this section if not relevant]
-   
-   ### Conclusion
-   [Final summary, recommendation, or closing statement]
+4. Formatting Structure: You MUST format your response ("text" key) strictly using the following Markdown headers and section layout (do NOT indent these lines with spaces):
+
+### Introduction
+[Brief overview of the topic or problem]
+
+### Main Discussion
+[Detailed explanation, features, analysis, or conversation content]
+
+### Point 1
+[First major point or explanation]
+
+### Point 2
+[Second major point or explanation]
+
+### Example / Demonstration
+[Optional examples or scenarios, omit this section if not relevant]
+
+### Conclusion
+[Final summary, recommendation, or closing statement]
 
 5. Output response as a JSON object:
 {
@@ -74,7 +74,7 @@ USER QUERY: "${userQuery}"`;
                     const parsed = JSON.parse(jsonText);
                     
                     return {
-                        response: parsed.text,
+                        response: this.cleanResponseText(parsed.text),
                         type: this.determineType(reasoning.intent, toolResults),
                         data: toolResults.data || toolResults,
                         followUpQuestions: parsed.followUpQuestions || []
@@ -97,6 +97,25 @@ USER QUERY: "${userQuery}"`;
         if (intent === 'TRUST_ANALYSIS') return 'trust_analysis';
         if (intent === 'PRODUCT_SEARCH' || intent === 'PRODUCT_RECOMMENDATION' || intent === 'PRICE_INQUIRY') return 'product_list';
         return 'text';
+    },
+
+    cleanResponseText(text) {
+        if (!text) return '';
+        let cleaned = text.trim();
+        
+        // 1. Strip markdown code fences if LLM wrapped the text in them
+        if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```json?\s*/i, '').replace(/^```markdown?\s*/i, '').replace(/```$/, '').trim();
+        }
+        
+        // 2. If every line starts with 4 spaces (indented code block copy), strip the leading spaces
+        const lines = cleaned.split('\n');
+        const hasUniversalIndent = lines.every(line => line.trim() === '' || line.startsWith('    ') || line.startsWith('\t'));
+        if (hasUniversalIndent && lines.some(line => line.trim() !== '')) {
+            cleaned = lines.map(line => line.startsWith('    ') ? line.substring(4) : (line.startsWith('\t') ? line.substring(1) : line)).join('\n');
+        }
+        
+        return cleaned.trim();
     },
 
     /**

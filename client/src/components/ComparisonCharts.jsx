@@ -1,26 +1,26 @@
 import React from 'react';
-import { ShieldAlert, CheckCircle2, Sparkles } from 'lucide-react';
+import { ShieldAlert, Sparkles } from 'lucide-react';
 
 // Custom Glowing Radar Chart Component (React-19 compliant custom SVG)
-export const GlowingRadarChart = ({ name1, name2, scorecard1, scorecard2 }) => {
+export const GlowingRadarChart = ({ name1, name2, scorecard1 = {}, scorecard2 = {} }) => {
     const size = 300;
     const center = size / 2;
     const rMax = 100; // max radius inside svg
     
     const preferences = ["Safety", "Ingredients", "Value", "Skin Match", "Community"];
     const scores1 = {
-        "Safety": scorecard1["Safety Score"] || 50,
-        "Ingredients": scorecard1["Ingredient Quality"] || 50,
-        "Value": scorecard1["Price Value"] || 50,
-        "Skin Match": scorecard1["Skin Compatibility"] || 50,
-        "Community": scorecard1["Community Rating"] || 50
+        "Safety": scorecard1?.["Safety Score"] || 50,
+        "Ingredients": scorecard1?.["Ingredient Quality"] || 50,
+        "Value": scorecard1?.["Price Value"] || 50,
+        "Skin Match": scorecard1?.["Skin Compatibility"] || 50,
+        "Community": scorecard1?.["Community Rating"] || 50
     };
     const scores2 = {
-        "Safety": scorecard2["Safety Score"] || 50,
-        "Ingredients": scorecard2["Ingredient Quality"] || 50,
-        "Value": scorecard2["Price Value"] || 50,
-        "Skin Match": scorecard2["Skin Compatibility"] || 50,
-        "Community": scorecard2["Community Rating"] || 50
+        "Safety": scorecard2?.["Safety Score"] || 50,
+        "Ingredients": scorecard2?.["Ingredient Quality"] || 50,
+        "Value": scorecard2?.["Price Value"] || 50,
+        "Skin Match": scorecard2?.["Skin Compatibility"] || 50,
+        "Community": scorecard2?.["Community Rating"] || 50
     };
 
     const numPoints = preferences.length;
@@ -182,15 +182,15 @@ export const GlowingRadarChart = ({ name1, name2, scorecard1, scorecard2 }) => {
     );
 };
 
-export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1, scorecard2 }) => {
+export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1 = {}, scorecard2 = {} }) => {
     return (
         <div className="grid lg:grid-cols-2 gap-8 items-start w-full">
             {/* Custom Radar Spectrum Chart */}
             <GlowingRadarChart 
                 scorecard1={scorecard1}
                 scorecard2={scorecard2}
-                name1={p1.name || p1.title}
-                name2={p2.name || p2.title}
+                name1={p1?.name || p1?.title || 'Product A'}
+                name2={p2?.name || p2?.title || 'Product B'}
             />
 
             {/* Fake Review Probability & Integrity Audit Cards */}
@@ -198,7 +198,7 @@ export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1, scorecard
                 <div className="bg-slate-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
                     <div className="flex items-center gap-2.5 mb-4 text-purple-400">
                         <ShieldAlert size={18} />
-                        <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {(p1.name || p1.title).substring(0, 18)}...</h4>
+                        <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {(p1?.name || p1?.title || 'Product A').substring(0, 18)}...</h4>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="relative shrink-0 flex items-center justify-center">
@@ -209,18 +209,18 @@ export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1, scorecard
                                     cy="35" 
                                     r="28" 
                                     fill="none" 
-                                    stroke={comparisonData.fake_analysis?.product_1.fake_prob > 40 ? '#f87171' : '#34d399'} 
+                                    stroke={(comparisonData?.fake_analysis?.product_1?.fake_prob || 0) > 40 ? '#f87171' : '#34d399'} 
                                     strokeWidth="5" 
                                     strokeDasharray={2 * Math.PI * 28}
-                                    strokeDashoffset={(1 - (comparisonData.fake_analysis?.product_1.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
+                                    strokeDashoffset={(1 - (comparisonData?.fake_analysis?.product_1?.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
                                     strokeLinecap="round"
                                 />
                             </svg>
-                            <span className="absolute text-[10px] font-black">{comparisonData.fake_analysis?.product_1.fake_prob}%</span>
+                            <span className="absolute text-[10px] font-black">{comparisonData?.fake_analysis?.product_1?.fake_prob || 0}%</span>
                         </div>
                         <div className="flex-1 text-xs text-slate-400 leading-relaxed">
                             <p className="font-bold text-slate-300 mb-1">Fake Review Risk Level</p>
-                            <p>Detected {comparisonData.fake_analysis?.product_1.duplicate_count || 0} duplicate review patterns and {comparisonData.fake_analysis?.product_1.spam_count || 0} short comment bursts out of {comparisonData.fake_analysis?.product_1.total_reviews || 0} total posts.</p>
+                            <p>Detected {comparisonData?.fake_analysis?.product_1?.duplicate_count || 0} duplicate review patterns and {comparisonData?.fake_analysis?.product_1?.spam_count || 0} short comment bursts out of {comparisonData?.fake_analysis?.product_1?.total_reviews || 0} total posts.</p>
                         </div>
                     </div>
                 </div>
@@ -228,7 +228,7 @@ export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1, scorecard
                 <div className="bg-slate-900/30 border border-white/5 rounded-3xl p-6 backdrop-blur-md">
                     <div className="flex items-center gap-2.5 mb-4 text-emerald-400">
                         <ShieldAlert size={18} />
-                        <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {(p2.name || p2.title).substring(0, 18)}...</h4>
+                        <h4 className="font-extrabold text-xs uppercase tracking-widest">Integrity Audit: {(p2?.name || p2?.title || 'Product B').substring(0, 18)}...</h4>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="relative shrink-0 flex items-center justify-center">
@@ -239,18 +239,18 @@ export const ComparisonCharts = ({ p1, p2, comparisonData, scorecard1, scorecard
                                     cy="35" 
                                     r="28" 
                                     fill="none" 
-                                    stroke={comparisonData.fake_analysis?.product_2.fake_prob > 40 ? '#f87171' : '#34d399'} 
+                                    stroke={(comparisonData?.fake_analysis?.product_2?.fake_prob || 0) > 40 ? '#f87171' : '#34d399'} 
                                     strokeWidth="5" 
                                     strokeDasharray={2 * Math.PI * 28}
-                                    strokeDashoffset={(1 - (comparisonData.fake_analysis?.product_2.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
+                                    strokeDashoffset={(1 - (comparisonData?.fake_analysis?.product_2?.fake_prob || 10) / 100) * (2 * Math.PI * 28)}
                                     strokeLinecap="round"
                                 />
                             </svg>
-                            <span className="absolute text-[10px] font-black">{comparisonData.fake_analysis?.product_2.fake_prob}%</span>
+                            <span className="absolute text-[10px] font-black">{comparisonData?.fake_analysis?.product_2?.fake_prob || 0}%</span>
                         </div>
                         <div className="flex-1 text-xs text-slate-400 leading-relaxed">
                             <p className="font-bold text-slate-300 mb-1">Fake Review Risk Level</p>
-                            <p>Detected {comparisonData.fake_analysis?.product_2.duplicate_count || 0} duplicate review patterns and {comparisonData.fake_analysis?.product_2.spam_count || 0} short comment bursts out of {comparisonData.fake_analysis?.product_2.total_reviews || 0} total posts.</p>
+                            <p>Detected {comparisonData?.fake_analysis?.product_2?.duplicate_count || 0} duplicate review patterns and {comparisonData?.fake_analysis?.product_2?.spam_count || 0} short comment bursts out of {comparisonData?.fake_analysis?.product_2?.total_reviews || 0} total posts.</p>
                         </div>
                     </div>
                 </div>

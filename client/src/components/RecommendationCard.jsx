@@ -5,8 +5,8 @@ import { useCart } from '../context/CartContext';
 import SafeImage from './SafeImage';
 import './RecommendationCard.css';
 
-const RecommendationCard = ({ product }) => {
-    const { name, price, category, rating, image_url, matchScore, explanation, rejectReason, features } = product;
+const RecommendationCard = ({ product = {} }) => {
+    const { name = '', price = 0, category = '', rating = 0, image_url = '', matchScore = 0, explanation = '', rejectReason = '', features = null } = product;
     const navigate = useNavigate();
     const { addToCart } = useCart();
 
@@ -21,7 +21,19 @@ const RecommendationCard = ({ product }) => {
         return () => clearInterval(interval);
     }, [price]);
 
-    const parsedFeatures = typeof features === 'string' ? JSON.parse(features) : features || {};
+    let parsedFeatures = {};
+    if (features) {
+        if (typeof features === 'string') {
+            try {
+                parsedFeatures = JSON.parse(features);
+            } catch (e) {
+                console.error("Failed to parse features JSON in RecommendationCard:", e);
+                parsedFeatures = {};
+            }
+        } else {
+            parsedFeatures = features;
+        }
+    }
 
     return (
         <div className={`rec-card glass-panel ${matchScore >= 80 ? 'high-match' : matchScore <= 50 ? 'low-match' : ''}`}>

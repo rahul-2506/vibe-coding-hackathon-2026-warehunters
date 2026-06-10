@@ -1,10 +1,10 @@
 import express from 'express';
 import { recommendController } from '../controllers/recommendController.js';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+import { optionalAuthMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.get('/:productId', recommendController.getRecommendations);
-router.post('/', authMiddleware, recommendController.getAIRecommendations);
+router.post('/', optionalAuthMiddleware, recommendController.getAIRecommendations);
 
 export default router;

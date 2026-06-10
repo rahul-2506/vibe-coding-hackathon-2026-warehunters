@@ -15,8 +15,8 @@ const ComparisonBar = () => {
                 <div className="selected-items">
                     {selectedProducts.map(product => (
                         <div key={product.id} className="selected-product-chip">
-                            <img src={product.image_url} alt={product.name} />
-                            <span>{product.name.split(' ').slice(0, 2).join(' ')}</span>
+                            <img src={product.image_url} alt={product.name || product.title || 'Product'} />
+                            <span>{(product.name || product.title || 'Product').split(' ').slice(0, 2).join(' ')}</span>
                             <button onClick={() => removeFromComparison(product.id)}>
                                 <X size={14} />
                             </button>

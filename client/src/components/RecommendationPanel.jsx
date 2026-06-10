@@ -75,7 +75,7 @@ export const RecommendationPanel = ({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl pointer-events-none rounded-full"></div>
                     <div className="flex items-center gap-2 mb-3 text-purple-400">
                         <Sparkles size={16} />
-                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p1.name || p1.title).substring(0, 15)}... is better for Oily Skin</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p1?.name || p1?.title || 'Product A').substring(0, 15)}... is better for Oily Skin</h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
                         Formulated with targeted bioactive compounds that penetrate deep into upper dermal layers to actively clear excess sebum. The lightweight formulation guarantees high tolerability without leaving heavy lipid traces, keeping skin texture clean and matte.
@@ -86,7 +86,7 @@ export const RecommendationPanel = ({
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl pointer-events-none rounded-full"></div>
                     <div className="flex items-center gap-2 mb-3 text-emerald-400">
                         <Sparkles size={16} />
-                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p2.name || p2.title).substring(0, 15)}... is better for Sensitive Skin</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest">Why {(p2?.name || p2?.title || 'Product B').substring(0, 15)}... is better for Sensitive Skin</h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
                         Employs a highly gentle humectant barrier repair network that binds moisture molecules to prevent epidermal water loss. Free of intensive peeling acids, it acts as a calming cellular buffer to soothe redness and minimize friction reactions.

@@ -149,26 +149,51 @@ Do not add Markdown formatting. Clean JSON array only.`;
                     });
 
                     if (text) {
-                        const recs = JSON.parse(text);
-                        const productMap = new Map(allProducts.map(p => [p.id, p]));
-                        const formatted = [];
+                        let cleanText = text.trim();
+                        if (cleanText.startsWith('```')) {
+                            cleanText = cleanText.replace(/^```json?\s*/i, '').replace(/```$/, '').trim();
+                        }
                         
-                        for (const rec of recs) {
-                            const p = productMap.get(Number(rec.id));
-                            if (p) {
-                                formatted.push({
-                                    id: p.id,
-                                    name: p.title || p.name,
-                                    price: Number(p.price),
-                                    category: p.category,
-                                    image_url: p.thumbnail || p.image_url,
-                                    matchScore: rec.matchScore,
-                                    explanation: rec.explanation,
-                                    relativityTags: rec.relativityTags
-                                });
+                        let recs = JSON.parse(cleanText);
+                        
+                        // If LLM returned an object instead of array, defensively find the array inside it
+                        if (!Array.isArray(recs) && recs && typeof recs === 'object') {
+                            if (Array.isArray(recs.recommendations)) {
+                                recs = recs.recommendations;
+                            } else if (Array.isArray(recs.products)) {
+                                recs = recs.products;
+                            } else {
+                                const possibleArray = Object.values(recs).find(val => Array.isArray(val));
+                                if (possibleArray) {
+                                    recs = possibleArray;
+                                } else {
+                                    recs = [];
+                                }
                             }
                         }
-                        return formatted;
+
+                        if (Array.isArray(recs)) {
+                            const productMap = new Map(allProducts.map(p => [p.id, p]));
+                            const formatted = [];
+                            
+                            for (const rec of recs) {
+                                if (!rec) continue;
+                                const p = productMap.get(Number(rec.id));
+                                if (p) {
+                                    formatted.push({
+                                        id: p.id,
+                                        name: p.title || p.name,
+                                        price: Number(p.price),
+                                        category: p.category,
+                                        image_url: p.thumbnail || p.image_url,
+                                        matchScore: Number(rec.matchScore || rec.match_score || 80),
+                                        explanation: rec.explanation || 'Matched based on AI query analysis.',
+                                        relativityTags: Array.isArray(rec.relativityTags) ? rec.relativityTags : (rec.relativityTags ? [rec.relativityTags] : [])
+                                    });
+                                }
+                            }
+                            return formatted;
+                        }
                     }
                 } catch (e) {
                     logger.error('[RECOMMENDATION SERVICE] AI matchmaking failed, falling back to heuristics', e, 'AI_GATEWAY');

@@ -183,32 +183,40 @@ export const vectorSearchService = {
             }
         });
 
-        const mergedProductIds = Array.from(rrfScores.keys())
-            .sort((a, b) => rrfScores.get(b) - rrfScores.get(a))
-            .map(idStr => Number(idStr));
+        const sortedRrfKeys = Array.from(rrfScores.keys())
+            .sort((a, b) => rrfScores.get(b) - rrfScores.get(a));
 
-        if (mergedProductIds.length === 0) {
+        if (sortedRrfKeys.length === 0) {
             logger.info(`[Vector Search] No products found via dual retrieval.`, 'SEARCH_PIPELINE');
             return [];
         }
 
+        const validDbIds = sortedRrfKeys
+            .map(idStr => Number(idStr))
+            .filter(id => !isNaN(id) && Number.isInteger(id));
+
         // Stage 6: Metadata Filtering & Details Expansion
         let finalProducts = [];
         try {
-            const { data: fullProducts, error: fetchErr } = await supabase
-                .from('products')
-                .select('*, skincare_details(*), electronics_details(*)')
-                .in('id', mergedProductIds);
+            let fullProducts = [];
+            if (validDbIds.length > 0) {
+                const { data, error: fetchErr } = await supabase
+                    .from('products')
+                    .select('*, skincare_details(*), electronics_details(*)')
+                    .in('id', validDbIds);
 
-            if (fetchErr) throw fetchErr;
+                if (fetchErr) throw fetchErr;
+                fullProducts = data || [];
+            }
 
             // Flatten joined details and apply strict filters
-            finalProducts = fullProducts.map(r => {
+            const dbProductsMapped = fullProducts.map(r => {
                 const skincare = r.skincare_details ? (Array.isArray(r.skincare_details) ? r.skincare_details[0] : r.skincare_details) : null;
                 const electronics = r.electronics_details ? (Array.isArray(r.electronics_details) ? r.electronics_details[0] : r.electronics_details) : null;
 
                 return {
                     ...r,
+                    id: Number(r.id),
                     name: r.title || r.name,
                     thumbnail: r.thumbnail || r.image_url,
                     image_url: r.image_url || r.thumbnail,
@@ -222,6 +230,60 @@ export const vectorSearchService = {
                     technical_features: electronics?.technical_features || ''
                 };
             });
+
+            // Now, we need to merge the fetched DB products and any aggregator/non-DB products.
+            const finalMergedList = [];
+            const dbProductIdsSet = new Set(dbProductsMapped.map(p => p.id));
+
+            for (const idStr of sortedRrfKeys) {
+                const dbId = Number(idStr);
+                if (!isNaN(dbId) && Number.isInteger(dbId) && dbProductIdsSet.has(dbId)) {
+                    const dbProd = dbProductsMapped.find(p => p.id === dbId);
+                    if (dbProd) finalMergedList.push(dbProd);
+                } else {
+                    const rawProd = mergedCandidatesMap.get(idStr);
+                    if (rawProd) {
+                        const ratingVal = Number(rawProd.rating || 0);
+                        const trustScoreVal = Number(rawProd.trust_score || rawProd.trustScore || 80);
+                        const reviewCountVal = Number(rawProd.review_count || rawProd.reviewCount || rawProd.reviews_count || 0);
+                        const priceVal = Number(rawProd.price_inr || rawProd.price || 0);
+                        const originalPriceVal = Number(rawProd.price_original || rawProd.originalPrice || rawProd.original_price || priceVal);
+
+                        finalMergedList.push({
+                            ...rawProd,
+                            id: isNaN(dbId) ? idStr : dbId,
+                            name: rawProd.title || rawProd.name || '',
+                            title: rawProd.title || rawProd.name || '',
+                            description: rawProd.description || '',
+                            category: rawProd.category || 'Others',
+                            price: priceVal,
+                            price_inr: priceVal,
+                            original_price: originalPriceVal,
+                            price_original: originalPriceVal,
+                            currency: rawProd.currency || 'INR',
+                            rating: ratingVal,
+                            brand: rawProd.brand || 'Generic',
+                            stock: Number(rawProd.stock || 50),
+                            thumbnail: rawProd.image || rawProd.thumbnail || rawProd.image_url || '',
+                            image_url: rawProd.image_url || rawProd.image || rawProd.thumbnail || '',
+                            images: Array.isArray(rawProd.images) ? rawProd.images : [rawProd.image || rawProd.thumbnail || rawProd.image_url || ''],
+                            trust_score: trustScoreVal,
+                            review_count: reviewCountVal,
+                            keywords: Array.isArray(rawProd.keywords) ? rawProd.keywords : [],
+                            source: rawProd.source || 'Scraped',
+                            product_url: rawProd.productUrl || rawProd.product_url || '',
+                            ingredients: rawProd.ingredients || '',
+                            key_ingredients: rawProd.key_ingredients || '',
+                            skin_type: rawProd.skin_type || '',
+                            concerns: rawProd.concerns || '',
+                            specifications_json: rawProd.specifications_json || rawProd.specifications || {},
+                            technical_features: rawProd.technical_features || ''
+                        });
+                    }
+                }
+            }
+
+            finalProducts = finalMergedList;
 
             // Metadata Filters: Category constraint
             if (resolvedCategory && resolvedCategory !== 'All') {
@@ -247,15 +309,14 @@ export const vectorSearchService = {
             return [];
         }
 
-        // Sort final products in the order of their RRF rank
+        // Sort final products in the order of their RRF rank using string IDs
         const orderMap = new Map();
-        mergedProductIds.forEach((id, index) => orderMap.set(id, index));
-        finalProducts.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
+        sortedRrfKeys.forEach((idStr, index) => orderMap.set(idStr, index));
+        finalProducts.sort((a, b) => orderMap.get(String(a.id)) - orderMap.get(String(b.id)));
 
         // Create relevance similarity map based on RRF scores for rankingService
         const relevanceMap = new Map();
         finalProducts.forEach(p => {
-            // Normalize RRF score to a 0.0 - 1.0 range
             const rrfVal = rrfScores.get(String(p.id)) || 0;
             relevanceMap.set(String(p.id), Math.min(1.0, rrfVal * 30)); 
         });
