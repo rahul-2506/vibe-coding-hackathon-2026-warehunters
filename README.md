@@ -80,3 +80,5 @@ Vercel can host Express apps using `vercel.json` serverless functions.
 2. The diagnostic panel will automatically ping your Vercel backend (`/api/health`).
 3. The Vercel backend will verify its own `GROQ_API_KEY` (AI: Yes) and asynchronously ping the Render ML service.
 4. Try sending a chat message to ensure Groq responds and Supabase RAG retrieves products!
+### Phase 5 :our finalized deployed link
+https://vibe-coding-hackathon-2026-warehunt.vercel.app/
